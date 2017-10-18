@@ -1,3 +1,3 @@
-# Node Package Build & Release Manager
+# Snap: Node Package Build & Release Manager
 
-A tool to help manage the the build, testing and release process.
+A tool that makes building, testing, starting and releasing NodeJS projects a snap!
