@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, removeSync, existsSync, ensureDirSync } fr
 import path from 'path'
 import process from 'process'
 import { execSync } from 'child_process'
-import tempy from 'tempy'
+import tmp from 'tmp'
 import { sync as commandExistsSync } from 'command-exists'
 
 export class SnapTool {
@@ -68,7 +68,7 @@ export class SnapTool {
   startAll(project) {
     SnapTool.ensureCommands(['osascript'])
 
-    const tempFile = tempy.file()
+    const tempFile = tmp.fileSync().name
     const rootDir = process.cwd()
 
     let script = `
