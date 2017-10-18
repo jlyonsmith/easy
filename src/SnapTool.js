@@ -175,10 +175,7 @@ export class SnapTool {
 
     this.log.info('Pulling...')
     execSync('git pull')
-    this.log.info('Building...')
-    this.buildAll(project)
-    this.log.info('Testing...')
-    this.testAll(project)
+
     this.log.info('Updating Version...')
     ensureDirSync('scratch')
 
@@ -188,15 +185,26 @@ export class SnapTool {
     const tagName = readFileSync('scratch/version.tag.txt')
     const tagDescription = readFileSync('scratch/version.desc.txt')
 
-    this.log.info('Committing Version Changes...')
-    execSync(`git add :/`)
+    try {
+      this.log.info('Building...')
+      this.buildAll(project)
+      this.log.info('Testing...')
+      this.testAll(project)
 
-    if (this.args.patch || this.args.minor || this.args.major) {
-      this.log.info('Tagging...')
-      execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
+      this.log.info('Committing Version Changes...')
+      execSync('git add :/')
+
+      if (this.args.patch || this.args.minor || this.args.major) {
+        this.log.info('Tagging...')
+        execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
+      }
+
+      execSync(`git commit -m '${tagDescription}'`)
+    } catch (error) {
+      // Roll back version changes if anything went wrong
+      execSync('git checkout -- .')
+      return
     }
-
-    execSync(`git commit -m '${tagDescription}'`)
 
     this.log.info('Pushing...')
     execSync('git push --follow-tags')
