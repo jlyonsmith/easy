@@ -205,10 +205,7 @@ class SnapTool {
 
     this.log.info('Pulling...');
     (0, _child_process.execSync)('git pull');
-    this.log.info('Building...');
-    this.buildAll(project);
-    this.log.info('Testing...');
-    this.testAll(project);
+
     this.log.info('Updating Version...');
     (0, _fsExtra.ensureDirSync)('scratch');
 
@@ -218,15 +215,26 @@ class SnapTool {
     const tagName = (0, _fsExtra.readFileSync)('scratch/version.tag.txt');
     const tagDescription = (0, _fsExtra.readFileSync)('scratch/version.desc.txt');
 
-    this.log.info('Committing Version Changes...');
-    (0, _child_process.execSync)(`git add :/`);
+    try {
+      this.log.info('Building...');
+      this.buildAll(project);
+      this.log.info('Testing...');
+      this.testAll(project);
 
-    if (this.args.patch || this.args.minor || this.args.major) {
-      this.log.info('Tagging...');
-      (0, _child_process.execSync)(`git tag -a ${tagName} -m '${tagDescription}'`);
+      this.log.info('Committing Version Changes...');
+      (0, _child_process.execSync)('git add :/');
+
+      if (this.args.patch || this.args.minor || this.args.major) {
+        this.log.info('Tagging...');
+        (0, _child_process.execSync)(`git tag -a ${tagName} -m '${tagDescription}'`);
+      }
+
+      (0, _child_process.execSync)(`git commit -m '${tagDescription}'`);
+    } catch (error) {
+      // Roll back version changes if anything went wrong
+      (0, _child_process.execSync)('git checkout -- .');
+      return;
     }
-
-    (0, _child_process.execSync)(`git commit -m '${tagDescription}'`);
 
     this.log.info('Pushing...');
     (0, _child_process.execSync)('git push --follow-tags');
