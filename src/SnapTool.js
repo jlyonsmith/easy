@@ -1,6 +1,5 @@
 import { sync as globSync } from 'glob'
 import parseArgs from 'minimist'
-import chalk from 'chalk'
 import { fullVersion } from './version'
 import util from 'util'
 import toposort from 'toposort'
@@ -177,7 +176,7 @@ export class SnapTool {
     this.log.info('Pulling...')
     execSync('git pull')
     this.log.info('Building...')
-    //this.buildAll(project)
+    this.buildAll(project)
     this.log.info('Testing...')
     this.testAll(project)
     this.log.info('Updating Version...')
@@ -203,8 +202,9 @@ export class SnapTool {
     execSync('git push --follow-tags')
 
     if (project.pkgs.size === 1 && !project.rootPkg.content.private) {
-      if (!this.args.patch || !this.args.minor || !this.args.major) {
-        throw new Error(`Must increment major, minor or patch number to publish to NPM`)
+      if (!this.args.patch && !this.args.minor && !this.args.major) {
+        this.log.error(`Not pushing to NPM as major, minor or patch number must be incremented`)
+        return
       }
       this.log.info('Publishing...')
       execSync('npm publish')

@@ -1,4 +1,5 @@
 import { SnapTool } from './SnapTool'
+import chalk from 'chalk'
 
 const log = {
   info: console.info,
