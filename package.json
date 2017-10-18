@@ -14,6 +14,10 @@
     "debug:snap": "babel-node --inspect-brk src/snap-cli.js",
     "test": "jest"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jlyonsmith/snap-tool.git"
+  },
   "keywords": [
     "package",
     "project",
@@ -24,6 +28,10 @@
   ],
   "author": "John Lyon-Smith",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jlyonsmith/snap-tool/issues"
+  },
+  "homepage": "https://github.com/jlyonsmith/snap-tool#readme",
   "devDependencies": {
     "babel-cli": "^6.24.1",
     "babel-core": "^6.26.0",
