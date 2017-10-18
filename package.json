@@ -29,6 +29,8 @@
   "dependencies": {
     "chalk": "^2.1.0",
     "glob": "^7.1.2",
-    "minimist": "^1.2.0"
+    "minimist": "^1.2.0",
+    "tempy": "^0.2.1",
+    "toposort": "^1.0.6"
   }
 }
