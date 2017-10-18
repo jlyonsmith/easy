@@ -1,4 +1,4 @@
-import { PackageSnap } from './PackageSnap'
+import { SnapTool } from './SnapTool'
 
 const log = {
   info: console.info,
@@ -6,7 +6,7 @@ const log = {
   warning: function() { console.error(chalk.yellow('warning:', [...arguments].join(' ')))}
 }
 
-const tool = new PackageSnap(log)
+const tool = new SnapTool(log)
 tool.run(process.argv.slice(2)).then((exitCode) => {
   process.exit(exitCode)
 }).catch((err) => {

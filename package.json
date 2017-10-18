@@ -1,8 +1,10 @@
 {
-  "name": "pkg-snap",
+  "name": "snap-tool",
   "version": "1.0.0",
-  "description": "A package build and release management tool",
-  "main": "dist/index.js",
+  "description": "A tool to make multi-package project management a snap!",
+  "bin": {
+    "snap": "dist/snap-cli.js"
+  },
   "scripts": {
     "build": "babel src -d dist -s --ignore *.test.js",
     "release:patch": "snap --patch",
@@ -11,6 +13,7 @@
   },
   "keywords": [
     "package",
+    "project",
     "build",
     "release",
     "test",
@@ -28,6 +31,8 @@
   },
   "dependencies": {
     "chalk": "^2.1.0",
+    "command-exists": "^1.2.2",
+    "fs-extra": "^4.0.2",
     "glob": "^7.1.2",
     "minimist": "^1.2.0",
     "tempy": "^0.2.1",
