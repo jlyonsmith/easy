@@ -50,7 +50,7 @@ test('test version', done => {
 
   return tool.run(['--version']).then(exitCode => {
     expect(exitCode).toBe(0)
-    expect(getOutput(mockLog.info)).toEqual(expect.stringMatching(/^v/))
+    expect(getOutput(mockLog.info)).toEqual(expect.stringMatching(/\d\.\d\.\d/))
     done()
   })
 })

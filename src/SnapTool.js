@@ -219,6 +219,11 @@ export class SnapTool {
 
     const command = this.args._[0]
 
+    if (this.args.version) {
+      this.log.info(`${fullVersion}`)
+      return 0
+    }
+
     if (this.args.help || !command) {
       this.log.info(`
 usage: snap <cmd> [options]
@@ -232,12 +237,9 @@ commands:
 options:
   --patch | --minor | --major   Release a patch, minor or major version. For 'release' command only.
   --clean                       Do a clean build.  For 'build' command only.
+  --help                        Shows this help.
+  --version                     Shows the tool version.
 `)
-      return 0
-    }
-
-    if (this.args.version) {
-      this.log.info(`{$fullVersion}`)
       return 0
     }
 
