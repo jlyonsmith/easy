@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { SnapTool } from './SnapTool'
 import chalk from 'chalk'
 
