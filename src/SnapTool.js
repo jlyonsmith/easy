@@ -78,11 +78,6 @@ export class SnapTool {
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname)
 
-      // Ignore the root project if it's not the only entry
-      if (pkg === project.rootPkg && project.pkgs.size > 1) {
-        return
-      }
-
       if (!pkg.content.scripts || !pkg.content.scripts.start) {
         return
       }
