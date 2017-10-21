@@ -159,16 +159,11 @@ class SnapTool {
       if (pkg.content.scripts && pkg.content.scripts.build) {
         if (this.args.clean) {
           this.log.info(`Cleaning '${name}'...`);
-          (0, _fsExtra.removeSync)('node_modules');
-          (0, _fsExtra.removeSync)('package-lock.json');
-          (0, _fsExtra.removeSync)('dist');
+          (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'node_modules'));
+          (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'package-lock.json'));
+          (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'dist'));
           this.log.info('Installing Packages...');
-          (0, _child_process.execSync)('npm install');
-        }
-
-        // Skip build for root project if there are multiple
-        if (pkg === project.rootPkg && project.pkgs.size > 1) {
-          return;
+          (0, _child_process.execSync)('npm install', { cwd: dirname });
         }
 
         this.log.info(`Building '${name}'...`);
@@ -182,12 +177,7 @@ class SnapTool {
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname);
 
-      // Skip test for root project if there are multiple
-      if (pkg === project.rootPkg && project.pkgs.size > 1) {
-        return;
-      }
-
-      if (pkg.content && pkg.content.scripts.build) {
+      if (pkg.content && pkg.content.scripts.test) {
         this.log.info(`Testing '${_path2.default.basename(dirname)}'...`);
         (0, _child_process.execSync)(`npm run test`, { cwd: dirname });
       }
