@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "build": "babel src -d dist -s --ignore *.test.js",
-    "release:patch": "snap --patch",
     "debug:snap": "babel-node --inspect-brk src/snap-cli.js",
     "test": "jest --testMatch src/**/*.test.js"
   },
