@@ -275,6 +275,7 @@ commands:
   test        Run 'npm test' for all projects
   update      Run 'npm update <pkg>...' for all projects
   install     Run 'npm install' for all projects
+  clean       Remove 'node_modules' and distribution files for all packages
   release     Increment version, run build' and 'test', tag and release non-private to 'npm'
 
 options:
