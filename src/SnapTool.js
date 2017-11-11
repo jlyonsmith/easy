@@ -15,10 +15,14 @@ export class SnapTool {
     this.log = log
   }
 
-  static ensureCommands(cmds) {
+  ensureCommands(cmds) {
+    this.cmds = (this.cmds || new Set())
+
     cmds.forEach(cmd => {
-      if (!commandExistsSync(cmd)) {
+      if (!this.cmds.has(cmd) &&!commandExistsSync(cmd)) {
         throw new Error(`Command '${cmd}' does not exist.  Please install it.`)
+      } else {
+        this.cmds.add(cmd)
       }
     })
   }
@@ -66,7 +70,7 @@ export class SnapTool {
   }
 
   startAll(project) {
-    SnapTool.ensureCommands(['osascript'])
+    this.ensureCommands(['osascript'])
 
     const tempFile = tmp.fileSync().name
     const rootDir = process.cwd()
@@ -115,53 +119,97 @@ export class SnapTool {
     execSync(`osascript < ${tempFile}`)
   }
 
-  buildAll(project) {
-    SnapTool.ensureCommands(['npm'])
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
-      const name = path.basename(dirname)
-
-      if (pkg.content.scripts && pkg.content.scripts.build) {
-        if (this.args.clean) {
-            this.log.info(`Cleaning '${name}'...`)
-            removeSync(path.join(dirname, 'node_modules'))
-            removeSync(path.join(dirname, 'package-lock.json'))
-            removeSync(path.join(dirname, 'dist'))
-            this.log.info('Installing Packages...')
-            execSync('npm install', { cwd: dirname })
-        }
-
-        this.log.info(`Building '${name}'...`)
-        execSync('npm run build', { cwd: dirname})
-      }
-    })
-  }
-
   testAll(project) {
-    SnapTool.ensureCommands(['npm'])
+    this.ensureCommands(['npm'])
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname)
 
       if (pkg.content && pkg.content.scripts.test) {
-        this.log.info(`Testing '${path.basename(dirname)}'...`)
+        this.log.info2(`Testing '${path.basename(dirname)}'...`)
         execSync(`npm run test`, { cwd: dirname})
       }
     })
   }
 
+  installAll(project) {
+    this.ensureCommands(['npm'])
+
+    if (this.args.clean) {
+      this.cleanAll(project)
+    }
+
+    project.order.forEach((dirname, index) => {
+      const pkg = project.pkgs.get(dirname)
+      const name = path.basename(dirname)
+
+      if (pkg.content && pkg.content.scripts.test) {
+        this.log.info2(`Installing '${name}'...`)
+        execSync(`npm install`, { cwd: dirname})
+      }
+    })
+  }
+
+  cleanAll(project) {
+    this.ensureCommands(['npm'])
+
+    project.order.forEach((dirname, index) => {
+      const name = path.basename(dirname)
+
+      this.log.info2(`Cleaning '${name}'...`)
+      removeSync(path.join(dirname, 'node_modules'))
+      removeSync(path.join(dirname, 'package-lock.json'))
+      removeSync(path.join(dirname, 'dist'))
+    })
+  }
+
+  updateAll(project) {
+    this.ensureCommands(['npm'])
+
+    project.order.forEach((dirname, index) => {
+      const pkg = project.pkgs.get(dirname)
+      const name = path.basename(dirname)
+
+      this.args.packages.forEach((pkgName) => {
+        if ((pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
+          (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])) {
+          this.log.info2(`Update '${pkgName}' in '${name}'...`)
+          execSync(`npm update ${pkgName}`, { cwd: dirname})
+        }
+      })
+    })
+  }
+
+  buildAll(project) {
+    this.ensureCommands(['npm'])
+
+    if (this.args.clean) {
+      this.installAll(project)
+    }
+
+    project.order.forEach((dirname, index) => {
+      const pkg = project.pkgs.get(dirname)
+      const name = path.basename(dirname)
+
+      if (pkg.content.scripts && pkg.content.scripts.build) {
+        this.log.info2(`Building '${name}'...`)
+        execSync('npm run build', { cwd: dirname})
+      }
+    })
+  }
+
   release(project) {
-    SnapTool.ensureCommands(['stampver', 'git', 'npx', 'npm'])
-    this.log.info('Checking for Uncommitted Changes...')
+    this.ensureCommands(['stampver', 'git', 'npx', 'npm'])
+    this.log.info2('Checking for Uncommitted Changes...')
     try {
       execSync('git diff-index --quiet HEAD --')
     } catch (error) {
       throw new Error('There are uncomitted changes - commit or stash them and try again')
     }
 
-    this.log.info('Pulling...')
+    this.log.info2('Pulling...')
     execSync('git pull')
 
-    this.log.info('Updating Version...')
+    this.log.info2('Updating Version...')
     ensureDirSync('scratch')
 
     const incrFlag = this.args.patch ? '-i patch' : this.args.minor ? '-i minor' : this.args.major ? '-i major' : ''
@@ -171,16 +219,16 @@ export class SnapTool {
     const tagDescription = readFileSync('scratch/version.desc.txt')
 
     try {
-      this.log.info('Building...')
+      this.log.info2('Building...')
       this.buildAll(project)
-      this.log.info('Testing...')
+      this.log.info2('Testing...')
       this.testAll(project)
 
-      this.log.info('Committing Version Changes...')
+      this.log.info2('Committing Version Changes...')
       execSync('git add :/')
 
       if (this.args.patch || this.args.minor || this.args.major) {
-        this.log.info('Tagging...')
+        this.log.info2('Tagging...')
         execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
       }
 
@@ -191,7 +239,7 @@ export class SnapTool {
       return
     }
 
-    this.log.info('Pushing...')
+    this.log.info2('Pushing...')
     execSync('git push --follow-tags')
 
     if (project.pkgs.size === 1 && !project.rootPkg.content.private) {
@@ -199,7 +247,7 @@ export class SnapTool {
         this.log.error(`Not pushing to NPM as major, minor or patch number must be incremented`)
         return
       }
-      this.log.info('Publishing...')
+      this.log.info2('Publishing...')
       execSync('npm publish')
     }
   }
@@ -222,14 +270,16 @@ export class SnapTool {
 usage: snap <cmd> [options]
 
 commands:
-  start            Run 'npm start' for all projects
-  build            Run 'npm build' for all projects
-  test             Run 'npm test' for all projects
-  release          Increment version, run build' and 'test', tag and release non-private to 'npm'
+  start       Run 'npm start' for all projects in new terminal tabs. Requires iTerm2 (https://www.iterm2.com/)
+  build       Run 'npm build' for all projects
+  test        Run 'npm test' for all projects
+  update      Run 'npm update <pkg>...' for all projects
+  install     Run 'npm install' for all projects
+  release     Increment version, run build' and 'test', tag and release non-private to 'npm'
 
 options:
   --patch | --minor | --major   Release a patch, minor or major version. For 'release' command only.
-  --clean                       Do a clean build.  For 'build' command only.
+  --clean                       Do a clean 'build' or 'install'.
   --help                        Shows this help.
   --version                     Shows the tool version.
 `)
@@ -250,6 +300,16 @@ options:
         break
       case 'release':
         this.release(project)
+        break
+      case 'clean':
+        this.cleanAll(project)
+        break
+      case 'install':
+        this.installAll(project)
+        break
+      case 'update':
+        this.args.packages = this.args._.slice(1)
+        this.updateAll(project)
         break
       default:
         this.log.error('Use --help to see available commands')
