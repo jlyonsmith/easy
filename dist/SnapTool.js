@@ -154,9 +154,9 @@ class SnapTool {
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname);
 
-      if (pkg.content && pkg.content.scripts.test) {
+      if (pkg.content.scripts && pkg.content.scripts.tests) {
         this.log.info2(`Testing '${_path2.default.basename(dirname)}'...`);
-        (0, _child_process.execSync)(`npm run test`, { cwd: dirname });
+        (0, _child_process.execSync)(`npm run tests`, { cwd: dirname });
       }
     });
   }
@@ -172,7 +172,7 @@ class SnapTool {
       const pkg = project.pkgs.get(dirname);
       const name = _path2.default.basename(dirname);
 
-      if (pkg.content && pkg.content.scripts.test) {
+      if (pkg.content.scripts && pkg.content.scripts.test) {
         this.log.info2(`Installing '${name}'...`);
         (0, _child_process.execSync)(`npm install`, { cwd: dirname });
       }
@@ -268,12 +268,12 @@ class SnapTool {
       return;
     }
 
-    this.log.info2('Pushing...');
+    this.log.info2('Pushing to Git...');
     (0, _child_process.execSync)('git push --follow-tags');
 
     if (project.pkgs.size === 1 && !project.rootPkg.content.private) {
       if (!this.args.patch && !this.args.minor && !this.args.major) {
-        this.log.error(`Not pushing to NPM as major, minor or patch number must be incremented`);
+        this.log.warning(`Not publish to NPM as major, minor or patch number must be incremented`);
         return;
       }
       this.log.info2('Publishing...');
