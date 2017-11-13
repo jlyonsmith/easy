@@ -244,7 +244,7 @@ export class SnapTool {
 
     if (project.pkgs.size === 1 && !project.rootPkg.content.private) {
       if (!this.args.patch && !this.args.minor && !this.args.major) {
-        this.log.warning(`Not publish to NPM as major, minor or patch number must be incremented`)
+        this.log.warning(`Major, minor or patch number must be incremented to publish to NPM`)
         return
       }
       this.log.info2('Publishing...')
