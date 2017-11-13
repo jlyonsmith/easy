@@ -11,7 +11,14 @@
   "scripts": {
     "build": "babel src -d dist -s --ignore *.test.js",
     "debug:snap": "babel-node --inspect-brk src/snap-cli.js",
-    "test": "jest --testMatch src/**/*.test.js"
+    "tests": "jest",
+    "tests:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "node_modules/",
+      "scratch/"
+    ]
   },
   "repository": {
     "type": "git",
