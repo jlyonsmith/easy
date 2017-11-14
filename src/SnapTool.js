@@ -142,10 +142,8 @@ export class SnapTool {
       const pkg = project.pkgs.get(dirname)
       const name = path.basename(dirname)
 
-      if (pkg.content.scripts && pkg.content.scripts.test) {
-        this.log.info2(`Installing '${name}'...`)
-        execSync(`npm install`, { cwd: dirname})
-      }
+      this.log.info2(`Installing '${name}'...`)
+      execSync(`npm install`, { cwd: dirname})
     })
   }
 
