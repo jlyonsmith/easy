@@ -124,9 +124,9 @@ export class SnapTool {
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname)
 
-      if (pkg.content.scripts && pkg.content.scripts.tests) {
+      if (pkg.content.scripts && pkg.content.scripts.test) {
         this.log.info2(`Testing '${path.basename(dirname)}'...`)
-        execSync(`npm run tests`, { cwd: dirname})
+        execSync(`npm test`, { cwd: dirname})
       }
     })
   }

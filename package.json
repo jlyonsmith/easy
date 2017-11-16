@@ -11,8 +11,8 @@
   "scripts": {
     "build": "babel src -d dist -s --ignore *.test.js",
     "debug:snap": "babel-node --inspect-brk src/snap-cli.js",
-    "tests": "jest",
-    "tests:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand"
+    "test": "jest",
+    "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand"
   },
   "jest": {
     "testPathIgnorePatterns": [
