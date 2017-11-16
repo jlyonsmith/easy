@@ -154,9 +154,9 @@ class SnapTool {
     project.order.forEach((dirname, index) => {
       const pkg = project.pkgs.get(dirname);
 
-      if (pkg.content.scripts && pkg.content.scripts.tests) {
+      if (pkg.content.scripts && pkg.content.scripts.test) {
         this.log.info2(`Testing '${_path2.default.basename(dirname)}'...`);
-        (0, _child_process.execSync)(`npm run tests`, { cwd: dirname });
+        (0, _child_process.execSync)(`npm test`, { cwd: dirname });
       }
     });
   }
