@@ -240,7 +240,7 @@ export class SnapTool {
     this.log.info2('Pushing to Git...')
     execSync('git push --follow-tags')
 
-    if (project.pkgs.size === 1 && !project.rootPkg.content.private) {
+    if (project.pkgs.size >= 1 && !project.rootPkg.content.private) {
       if (!this.args.patch && !this.args.minor && !this.args.major) {
         this.log.warning(`Major, minor or patch number must be incremented to publish to NPM`)
         return
