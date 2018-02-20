@@ -11,7 +11,8 @@ import tmp from 'tmp'
 import { sync as commandExistsSync } from 'command-exists'
 
 export class SnapTool {
-  constructor(log) {
+  constructor(toolName, log) {
+    this.toolName = toolName
     this.log = log
   }
 
@@ -252,67 +253,140 @@ export class SnapTool {
 
   async run(argv) {
     const options = {
-      boolean: [ 'help', 'version', 'patch', 'minor', 'major', 'clean' ],
+      boolean: [ 'help', 'version', 'patch', 'minor', 'major', 'clean', 'actors' ],
+      alias: {
+        'a': 'actors'
+      }
     }
     this.args = parseArgs(argv, options)
-
-    const command = this.args._[0]
 
     if (this.args.version) {
       this.log.info(`${fullVersion}`)
       return 0
     }
 
-    if (this.args.help || !command) {
-      this.log.info(`
-usage: snap <cmd> [options]
+    const project = this.getProject()
+    let command = this.args._[0]
 
-commands:
-  start       Run 'npm start' for all projects in new terminal tabs. Requires iTerm2 (https://www.iterm2.com/)
+    command = command ? command.toLowerCase() : 'help'
+
+    switch (command) {
+      case 'start':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} start [options]
+
+Description:
+
+Runs 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
+
+Options:
+  --actors, -a    If one or more 'actor:*' scripts are found in the package.json,
+                  run those instead of the 'start' script, if it exists.
+`)
+          return 0
+        }
+        this.startAll(project)
+        break
+      case 'build':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} build
+
+Description:
+
+Runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+`)
+          return 0
+        }
+        this.buildAll(project)
+        break
+      case 'test':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} test
+
+Description:
+
+Runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
+`)
+          return 0
+        }
+        this.testAll(project)
+        break
+      case 'release':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} release [options]
+
+Description:
+
+Increment version information with 'stampver', runs 'snap build', 'snap test',
+tags local Git repo, pushes changes then optionally releases to NPM.
+
+Options:
+  --major       Release major version
+  --minor       Release minor version
+  --patch       Release a patch
+  --npm         Push a non-private build to NPM (http://npmjs.org)
+`)
+          return 0
+        }
+        this.release(project)
+        break
+      case 'clean':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} clean
+
+Description:
+
+Deletes all 'dist' and 'node_modules' directories, and 'package-lock.json' files recursively.
+`)
+          return 0
+        }
+        this.cleanAll(project)
+        break
+      case 'install':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} install
+
+Description:
+
+Runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
+`)
+          return 0
+        }
+        this.installAll(project)
+        break
+      case 'update':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} update
+
+Description:
+
+Runs 'npm update' in all directories containing 'package.json' except 'node_modules/**'.
+`)
+          return 0
+        }
+        this.args.packages = this.args._.slice(1)
+        this.updateAll(project)
+        break
+      case 'help':
+      default:
+        this.log.info(`
+Usage: ${this.toolName} <cmd> [options]
+
+Commands:
+  start       Run 'npm start' for all projects in new terminal tabs.
+              Requires iTerm2 (https://www.iterm2.com/)
   build       Run 'npm build' for all projects
   test        Run 'npm test' for all projects
   update      Run 'npm update <pkg>...' for all projects
   install     Run 'npm install' for all projects
   clean       Remove 'node_modules' and distribution files for all packages
-  release     Increment version, run build' and 'test', tag and release non-private to 'npm'
+  release     Increment version, build, test, tag and release
 
-options:
-  --patch | --minor | --major   Release a patch, minor or major version. For 'release' command only.
-  --clean                       Do a clean 'build' or 'install'.
+Global Options:
   --help                        Shows this help.
   --version                     Shows the tool version.
 `)
-      return 0
-    }
-
-    const project = this.getProject()
-
-    switch (command.toLowerCase()) {
-      case 'start':
-        this.startAll(project)
-        break
-      case 'build':
-        this.buildAll(project)
-        break
-      case 'test':
-        this.testAll(project)
-        break
-      case 'release':
-        this.release(project)
-        break
-      case 'clean':
-        this.cleanAll(project)
-        break
-      case 'install':
-        this.installAll(project)
-        break
-      case 'update':
-        this.args.packages = this.args._.slice(1)
-        this.updateAll(project)
-        break
-      default:
-        this.log.error('Use --help to see available commands')
-        return -1
+        return 0
     }
 
     return 0

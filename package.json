@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "description": "A tool to make multi-package project management a snap!",
   "bin": {
-    "snap": "dist/snap-cli.js"
+    "snap": "dist/snap.js"
   },
   "files": [
     "dist/**"
