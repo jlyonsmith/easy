@@ -42,7 +42,8 @@ var _commandExists = require('command-exists');
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 class SnapTool {
-  constructor(log) {
+  constructor(toolName, log) {
+    this.toolName = toolName;
     this.log = log;
   }
 
@@ -64,28 +65,28 @@ class SnapTool {
     }
 
     const filenames = (0, _glob.sync)('**/package.json', { ignore: ['**/node_modules/**', '**/scratch/**'], realpath: true });
-    const dirnames = filenames.map(filename => _path2.default.dirname(filename));
-    const pkgMap = new Map(dirnames.map(dirname => [dirname, {}]));
+    const dirNames = filenames.map(filename => _path2.default.dirname(filename));
+    const pkgMap = new Map(dirNames.map(dirName => [dirName, {}]));
     let edges = [];
     let rootPkg = null;
 
     for (let pair of pkgMap) {
-      const [dirname, pkg] = pair;
-      const content = JSON.parse((0, _fsExtra.readFileSync)(dirname + '/package.json', { encoding: 'utf8' }));
+      const [dirName, pkg] = pair;
+      const content = JSON.parse((0, _fsExtra.readFileSync)(dirName + '/package.json', { encoding: 'utf8' }));
 
       pkg.content = content;
 
-      if (dirname === _process2.default.cwd()) {
+      if (dirName === _process2.default.cwd()) {
         rootPkg = pkg;
       } else if (content.dependencies) {
         const prefix = 'file:';
 
         Object.entries(content.dependencies).forEach(arr => {
           if (arr[1].startsWith(prefix)) {
-            const otherDirname = _path2.default.resolve(_path2.default.join(dirname, arr[1].substring(prefix.length)));
+            const otherdirName = _path2.default.resolve(_path2.default.join(dirName, arr[1].substring(prefix.length)));
 
-            if (pkgMap.has(otherDirname)) {
-              edges.push([dirname, otherDirname]);
+            if (pkgMap.has(otherdirName)) {
+              edges.push([dirName, otherdirName]);
             }
           }
         });
@@ -94,7 +95,7 @@ class SnapTool {
 
     return {
       pkgs: pkgMap,
-      order: _toposort2.default.array(dirnames, edges).reverse(),
+      order: _toposort2.default.array(dirNames, edges).reverse(),
       rootPkg
     };
   }
@@ -104,41 +105,61 @@ class SnapTool {
 
     const tempFile = _tmp2.default.fileSync().name;
     const rootDir = _process2.default.cwd();
+    const preferActors = !!this.args.actors;
 
     let script = `
     tell application "iTerm"
       tell (create window with default profile)
     `;
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname);
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName);
 
-      if (!pkg.content.scripts || !pkg.content.scripts.start) {
+      if (!pkg.content.scripts) {
         return;
       }
 
-      const name = _path2.default.basename(dirname);
+      let scriptNames = [];
+
+      if (preferActors) {
+        scriptNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith('actor:') && !s.endsWith(':debug'));
+      }
+
+      if (scriptNames.length === 0) {
+        if (pkg.content.scripts.start) {
+          scriptNames = ['start'];
+        } else {
+          return;
+        }
+      }
+
+      const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes('library') || pkg.content.keywords.hasOwnProperty('library'));
+      const packageName = _path2.default.basename(dirName);
       let color;
-      if (pkg.content.keywords && pkg.content.keywords.includes('library')) {
+
+      if (isLibrary) {
         color = '0 255 0';
       } else {
         color = '0 198 255';
       }
-      if (index == 0) {
-        script += `
-        tell current session of current tab
-          write text "cd ${dirname}; title ${name}; tab-color ${color}; npm start"
-        end tell
-        `;
-      } else {
-        script += `
-        set newTab to (create tab with default profile)
-        tell newTab
-          tell current session of newTab
-            write text "cd ${dirname}; title ${name}; tab-color ${color}; npm start"
+
+      scriptNames.forEach(scriptName => {
+        if (index == 0) {
+          script += `
+          tell current session of current tab
+          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
           end tell
-        end tell
-        `;
-      }
+          `;
+        } else {
+          script += `
+          set newTab to (create tab with default profile)
+          tell newTab
+          tell current session of newTab
+          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
+          end tell
+          end tell
+          `;
+        }
+      });
     });
     script += `
       end tell
@@ -151,12 +172,12 @@ class SnapTool {
 
   testAll(project) {
     this.ensureCommands(['npm']);
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname);
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName);
 
       if (pkg.content.scripts && pkg.content.scripts.test) {
-        this.log.info2(`Testing '${_path2.default.basename(dirname)}'...`);
-        (0, _child_process.execSync)(`npm test`, { cwd: dirname });
+        this.log.info2(`Testing '${_path2.default.basename(dirName)}'...`);
+        (0, _child_process.execSync)(`npm test`, { cwd: dirName });
       }
     });
   }
@@ -168,39 +189,39 @@ class SnapTool {
       this.cleanAll(project);
     }
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname);
-      const name = _path2.default.basename(dirname);
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName);
+      const name = _path2.default.basename(dirName);
 
       this.log.info2(`Installing '${name}'...`);
-      (0, _child_process.execSync)(`npm install`, { cwd: dirname });
+      (0, _child_process.execSync)(`npm install`, { cwd: dirName });
     });
   }
 
   cleanAll(project) {
     this.ensureCommands(['npm']);
 
-    project.order.forEach((dirname, index) => {
-      const name = _path2.default.basename(dirname);
+    project.order.forEach((dirName, index) => {
+      const name = _path2.default.basename(dirName);
 
       this.log.info2(`Cleaning '${name}'...`);
-      (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'node_modules'));
-      (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'package-lock.json'));
-      (0, _fsExtra.removeSync)(_path2.default.join(dirname, 'dist'));
+      (0, _fsExtra.removeSync)(_path2.default.join(dirName, 'node_modules'));
+      (0, _fsExtra.removeSync)(_path2.default.join(dirName, 'package-lock.json'));
+      (0, _fsExtra.removeSync)(_path2.default.join(dirName, 'dist'));
     });
   }
 
   updateAll(project) {
     this.ensureCommands(['npm']);
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname);
-      const name = _path2.default.basename(dirname);
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName);
+      const name = _path2.default.basename(dirName);
 
       this.args.packages.forEach(pkgName => {
         if (pkg.content.dependencies && pkg.content.dependencies[pkgName] || pkg.content.devDependencies && pkg.content.devDependencies[pkgName]) {
           this.log.info2(`Update '${pkgName}' in '${name}'...`);
-          (0, _child_process.execSync)(`npm update ${pkgName}`, { cwd: dirname });
+          (0, _child_process.execSync)(`npm update ${pkgName}`, { cwd: dirName });
         }
       });
     });
@@ -213,19 +234,25 @@ class SnapTool {
       this.installAll(project);
     }
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname);
-      const name = _path2.default.basename(dirname);
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName);
+      const name = _path2.default.basename(dirName);
 
       if (pkg.content.scripts && pkg.content.scripts.build) {
         this.log.info2(`Building '${name}'...`);
-        (0, _child_process.execSync)('npm run build', { cwd: dirname });
+        (0, _child_process.execSync)('npm run build', { cwd: dirName });
       }
     });
   }
 
   release(project) {
     this.ensureCommands(['stampver', 'git', 'npx', 'npm']);
+
+    if (!this.args.patch && !this.args.minor && !this.args.major) {
+      this.log.warning(`Major, minor or patch number must be incremented for release`);
+      return;
+    }
+
     this.log.info2('Checking for Uncommitted Changes...');
     try {
       (0, _child_process.execSync)('git diff-index --quiet HEAD --');
@@ -269,79 +296,148 @@ class SnapTool {
     this.log.info2('Pushing to Git...');
     (0, _child_process.execSync)('git push --follow-tags');
 
-    if (project.pkgs.size >= 1 && !project.rootPkg.content.private) {
-      if (!this.args.patch && !this.args.minor && !this.args.major) {
-        this.log.warning(`Major, minor or patch number must be incremented to publish to NPM`);
-        return;
-      }
-      this.log.info2('Publishing...');
+    if (this.args.npm && project.pkgs.size >= 1 && !project.rootPkg.content.private) {
+      this.log.info2('Publishing to NPM...');
       (0, _child_process.execSync)('npm publish');
     }
   }
 
   async run(argv) {
     const options = {
-      boolean: ['help', 'version', 'patch', 'minor', 'major', 'clean']
+      boolean: ['help', 'version', 'patch', 'minor', 'major', 'clean', 'actors', 'npm'],
+      alias: {
+        'a': 'actors'
+      }
     };
     this.args = (0, _minimist2.default)(argv, options);
-
-    const command = this.args._[0];
 
     if (this.args.version) {
       this.log.info(`${_version.fullVersion}`);
       return 0;
     }
 
-    if (this.args.help || !command) {
-      this.log.info(`
-usage: snap <cmd> [options]
+    const project = this.getProject();
+    let command = this.args._[0];
 
-commands:
-  start       Run 'npm start' for all projects in new terminal tabs. Requires iTerm2 (https://www.iterm2.com/)
+    command = command ? command.toLowerCase() : 'help';
+
+    switch (command) {
+      case 'start':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} start [options]
+
+Description:
+
+Runs 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
+
+Options:
+  --actors, -a    If one or more 'actor:*' scripts are found in the package.json,
+                  run those instead of the 'start' script, if it exists.
+`);
+          return 0;
+        }
+        this.startAll(project);
+        break;
+      case 'build':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} build
+
+Description:
+
+Runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+`);
+          return 0;
+        }
+        this.buildAll(project);
+        break;
+      case 'test':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} test
+
+Description:
+
+Runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
+`);
+          return 0;
+        }
+        this.testAll(project);
+        break;
+      case 'release':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} release [options]
+
+Description:
+
+Increment version information with 'stampver', runs 'snap build', 'snap test',
+tags local Git repo, pushes changes then optionally releases to NPM.
+
+Options:
+  --major       Release major version
+  --minor       Release minor version
+  --patch       Release a patch
+  --npm         Push a non-private build to NPM (http://npmjs.org)
+`);
+          return 0;
+        }
+        this.release(project);
+        break;
+      case 'clean':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} clean
+
+Description:
+
+Deletes all 'dist' and 'node_modules' directories, and 'package-lock.json' files recursively.
+`);
+          return 0;
+        }
+        this.cleanAll(project);
+        break;
+      case 'install':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} install
+
+Description:
+
+Runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
+`);
+          return 0;
+        }
+        this.installAll(project);
+        break;
+      case 'update':
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} update
+
+Description:
+
+Runs 'npm update' in all directories containing 'package.json' except 'node_modules/**'.
+`);
+          return 0;
+        }
+        this.args.packages = this.args._.slice(1);
+        this.updateAll(project);
+        break;
+      case 'help':
+      default:
+        this.log.info(`
+Usage: ${this.toolName} <cmd> [options]
+
+Commands:
+  start       Run 'npm start' for all projects in new terminal tabs.
+              Requires iTerm2 (https://www.iterm2.com/)
   build       Run 'npm build' for all projects
   test        Run 'npm test' for all projects
   update      Run 'npm update <pkg>...' for all projects
   install     Run 'npm install' for all projects
   clean       Remove 'node_modules' and distribution files for all packages
-  release     Increment version, run build' and 'test', tag and release non-private to 'npm'
+  release     Increment version, build, test, tag and release
 
-options:
-  --patch | --minor | --major   Release a patch, minor or major version. For 'release' command only.
-  --clean                       Do a clean 'build' or 'install'.
+Global Options:
   --help                        Shows this help.
   --version                     Shows the tool version.
 `);
-      return 0;
-    }
-
-    const project = this.getProject();
-
-    switch (command.toLowerCase()) {
-      case 'start':
-        this.startAll(project);
-        break;
-      case 'build':
-        this.buildAll(project);
-        break;
-      case 'test':
-        this.testAll(project);
-        break;
-      case 'release':
-        this.release(project);
-        break;
-      case 'clean':
-        this.cleanAll(project);
-        break;
-      case 'install':
-        this.installAll(project);
-        break;
-      case 'update':
-        this.args.packages = this.args._.slice(1);
-        this.updateAll(project);
-        break;
-      default:
-        this.log.error('Use --help to see available commands');
-        return -1;
+        return 0;
     }
 
     return 0;
