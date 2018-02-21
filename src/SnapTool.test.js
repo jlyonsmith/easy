@@ -34,7 +34,7 @@ function getOutput(fn) {
 
 test('test help', done => {
   const mockLog = getMockLog()
-  const tool = new SnapTool(mockLog)
+  const tool = new SnapTool('snap', mockLog)
 
   return tool.run(['--help']).then(exitCode => {
     expect(exitCode).toBe(0)
@@ -46,7 +46,7 @@ test('test help', done => {
 
 test('test version', done => {
   const mockLog = getMockLog()
-  const tool = new SnapTool(mockLog)
+  const tool = new SnapTool('snap', mockLog)
 
   return tool.run(['--version']).then(exitCode => {
     expect(exitCode).toBe(0)
