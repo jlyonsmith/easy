@@ -35,28 +35,28 @@ export class SnapTool {
 
     const filenames = globSync('**/package.json',
       { ignore: ['**/node_modules/**', '**/scratch/**'], realpath: true })
-    const dirnames = filenames.map(filename => (path.dirname(filename)))
-    const pkgMap = new Map(dirnames.map(dirname => ([dirname, {}])))
+    const dirNames = filenames.map(filename => (path.dirname(filename)))
+    const pkgMap = new Map(dirNames.map(dirName => ([dirName, {}])))
     let edges = []
     let rootPkg = null
 
     for (let pair of pkgMap) {
-      const [dirname, pkg] = pair
-      const content = JSON.parse(readFileSync(dirname + '/package.json', { encoding: 'utf8' }))
+      const [dirName, pkg] = pair
+      const content = JSON.parse(readFileSync(dirName + '/package.json', { encoding: 'utf8' }))
 
       pkg.content = content
 
-      if (dirname === process.cwd()) {
+      if (dirName === process.cwd()) {
         rootPkg = pkg
       } else if (content.dependencies) {
         const prefix = 'file:'
 
         Object.entries(content.dependencies).forEach(arr => {
           if (arr[1].startsWith(prefix)) {
-            const otherDirname = path.resolve(path.join(dirname, arr[1].substring(prefix.length)))
+            const otherdirName = path.resolve(path.join(dirName, arr[1].substring(prefix.length)))
 
-            if (pkgMap.has(otherDirname)) {
-              edges.push([dirname, otherDirname])
+            if (pkgMap.has(otherdirName)) {
+              edges.push([dirName, otherdirName])
             }
           }
         })
@@ -65,7 +65,7 @@ export class SnapTool {
 
     return {
       pkgs: pkgMap,
-      order: toposort.array(dirnames, edges).reverse(),
+      order: toposort.array(dirNames, edges).reverse(),
       rootPkg
     }
   }
@@ -75,41 +75,62 @@ export class SnapTool {
 
     const tempFile = tmp.fileSync().name
     const rootDir = process.cwd()
+    const preferActors = !!this.args.actors
 
     let script = `
     tell application "iTerm"
       tell (create window with default profile)
     `
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
 
-      if (!pkg.content.scripts || !pkg.content.scripts.start) {
+      if (!pkg.content.scripts) {
         return
       }
 
-      const name = path.basename(dirname)
+      let scriptNames = []
+
+      if (preferActors) {
+        scriptNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith('actor:') && !s.endsWith(':debug'))
+      }
+
+      if (scriptNames.length === 0) {
+        if (pkg.content.scripts.start) {
+          scriptNames = ['start']
+        } else {
+          return
+        }
+      }
+
+      const isLibrary = (pkg.content.keywords &&
+        ((Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes('library')) || pkg.content.keywords.hasOwnProperty('library')))
+      const packageName = path.basename(dirName)
       let color
-      if (pkg.content.keywords && pkg.content.keywords.includes('library')) {
+
+      if (isLibrary) {
         color = '0 255 0'
       } else {
         color = '0 198 255'
       }
-      if (index == 0) {
-        script += `
-        tell current session of current tab
-          write text "cd ${dirname}; title ${name}; tab-color ${color}; npm start"
-        end tell
-        `
-      } else {
-        script += `
-        set newTab to (create tab with default profile)
-        tell newTab
-          tell current session of newTab
-            write text "cd ${dirname}; title ${name}; tab-color ${color}; npm start"
+
+      scriptNames.forEach((scriptName) => {
+        if (index == 0) {
+          script += `
+          tell current session of current tab
+          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
           end tell
-        end tell
-        `
-      }
+          `
+        } else {
+          script += `
+          set newTab to (create tab with default profile)
+          tell newTab
+          tell current session of newTab
+          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
+          end tell
+          end tell
+          `
+        }
+      })
     })
     script += `
       end tell
@@ -122,12 +143,12 @@ export class SnapTool {
 
   testAll(project) {
     this.ensureCommands(['npm'])
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.test) {
-        this.log.info2(`Testing '${path.basename(dirname)}'...`)
-        execSync(`npm test`, { cwd: dirname})
+        this.log.info2(`Testing '${path.basename(dirName)}'...`)
+        execSync(`npm test`, { cwd: dirName})
       }
     })
   }
@@ -139,40 +160,40 @@ export class SnapTool {
       this.cleanAll(project)
     }
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
-      const name = path.basename(dirname)
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
+      const name = path.basename(dirName)
 
       this.log.info2(`Installing '${name}'...`)
-      execSync(`npm install`, { cwd: dirname})
+      execSync(`npm install`, { cwd: dirName})
     })
   }
 
   cleanAll(project) {
     this.ensureCommands(['npm'])
 
-    project.order.forEach((dirname, index) => {
-      const name = path.basename(dirname)
+    project.order.forEach((dirName, index) => {
+      const name = path.basename(dirName)
 
       this.log.info2(`Cleaning '${name}'...`)
-      removeSync(path.join(dirname, 'node_modules'))
-      removeSync(path.join(dirname, 'package-lock.json'))
-      removeSync(path.join(dirname, 'dist'))
+      removeSync(path.join(dirName, 'node_modules'))
+      removeSync(path.join(dirName, 'package-lock.json'))
+      removeSync(path.join(dirName, 'dist'))
     })
   }
 
   updateAll(project) {
     this.ensureCommands(['npm'])
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
-      const name = path.basename(dirname)
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
+      const name = path.basename(dirName)
 
       this.args.packages.forEach((pkgName) => {
         if ((pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
           (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])) {
           this.log.info2(`Update '${pkgName}' in '${name}'...`)
-          execSync(`npm update ${pkgName}`, { cwd: dirname})
+          execSync(`npm update ${pkgName}`, { cwd: dirName})
         }
       })
     })
@@ -185,13 +206,13 @@ export class SnapTool {
       this.installAll(project)
     }
 
-    project.order.forEach((dirname, index) => {
-      const pkg = project.pkgs.get(dirname)
-      const name = path.basename(dirname)
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
+      const name = path.basename(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.build) {
         this.log.info2(`Building '${name}'...`)
-        execSync('npm run build', { cwd: dirname})
+        execSync('npm run build', { cwd: dirName})
       }
     })
   }
