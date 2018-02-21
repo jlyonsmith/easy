@@ -219,6 +219,12 @@ export class SnapTool {
 
   release(project) {
     this.ensureCommands(['stampver', 'git', 'npx', 'npm'])
+
+    if (!this.args.patch && !this.args.minor && !this.args.major) {
+      this.log.warning(`Major, minor or patch number must be incremented for release`)
+      return
+    }
+
     this.log.info2('Checking for Uncommitted Changes...')
     try {
       execSync('git diff-index --quiet HEAD --')
@@ -262,19 +268,15 @@ export class SnapTool {
     this.log.info2('Pushing to Git...')
     execSync('git push --follow-tags')
 
-    if (project.pkgs.size >= 1 && !project.rootPkg.content.private) {
-      if (!this.args.patch && !this.args.minor && !this.args.major) {
-        this.log.warning(`Major, minor or patch number must be incremented to publish to NPM`)
-        return
-      }
-      this.log.info2('Publishing...')
+    if (this.args.npm && project.pkgs.size >= 1 && !project.rootPkg.content.private) {
+      this.log.info2('Publishing to NPM...')
       execSync('npm publish')
     }
   }
 
   async run(argv) {
     const options = {
-      boolean: [ 'help', 'version', 'patch', 'minor', 'major', 'clean', 'actors' ],
+      boolean: [ 'help', 'version', 'patch', 'minor', 'major', 'clean', 'actors', 'npm' ],
       alias: {
         'a': 'actors'
       }
