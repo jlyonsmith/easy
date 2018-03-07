@@ -118,35 +118,31 @@ class SnapTool {
         return;
       }
 
-      let scriptNames = [];
+      let details = [];
 
       if (preferActors) {
-        scriptNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith('actor:') && !s.endsWith(':debug'));
-      }
+        const actorNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith('actor:') && !s.endsWith(':debug'));
 
-      if (scriptNames.length === 0) {
-        if (pkg.content.scripts.start) {
-          scriptNames = ['start'];
-        } else {
-          return;
+        if (actorNames.length > 0) {
+          details = actorNames.map(name => ({ name, title: name.substring('actor:'.length), color: '255 198 0' }));
         }
       }
 
-      const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes('library') || pkg.content.keywords.hasOwnProperty('library'));
-      const packageName = _path2.default.basename(dirName);
-      let color;
+      if (details.length === 0) {
+        if (!pkg.content.scripts.start) {
+          return;
+        }
 
-      if (isLibrary) {
-        color = '0 255 0';
-      } else {
-        color = '0 198 255';
+        const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes('library') || pkg.content.keywords.hasOwnProperty('library'));
+
+        details = [{ name: 'start', title: _path2.default.basename(dirName), color: isLibrary ? '0 255 0' : '0 198 255' }];
       }
 
-      scriptNames.forEach(scriptName => {
+      details.forEach(detail => {
         if (index == 0) {
           script += `
           tell current session of current tab
-          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
+          write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
           end tell
           `;
         } else {
@@ -154,7 +150,7 @@ class SnapTool {
           set newTab to (create tab with default profile)
           tell newTab
           tell current session of newTab
-          write text "cd ${dirName}; title ${packageName}; tab-color ${color}; npm run ${scriptName}"
+          write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
           end tell
           end tell
           `;
