@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "babel src -d dist -s --ignore *.test.js",
-    "debug:snap": "babel-node --inspect-brk src/snap-cli.js",
+    "debug:snap": "babel-node --inspect-brk src/snap.js",
     "test": "jest",
     "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand"
   },
@@ -52,6 +52,7 @@
     "fs-extra": "^4.0.2",
     "glob": "^7.1.2",
     "minimist": "^1.2.0",
+    "readline-sync": "^1.4.9",
     "tmp": "0.0.33",
     "toposort": "^1.0.6"
   }

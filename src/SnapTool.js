@@ -1,14 +1,22 @@
-import { sync as globSync } from 'glob'
-import parseArgs from 'minimist'
-import { fullVersion } from './version'
-import util from 'util'
-import toposort from 'toposort'
-import { readFileSync, writeFileSync, removeSync, existsSync, ensureDirSync } from 'fs-extra'
-import path from 'path'
-import process from 'process'
-import { execSync } from 'child_process'
-import tmp from 'tmp'
-import { sync as commandExistsSync } from 'command-exists'
+import { sync as globSync } from "glob"
+import parseArgs from "minimist"
+import { fullVersion } from "./version"
+import util from "util"
+import toposort from "toposort"
+import {
+  readFileSync,
+  writeFileSync,
+  removeSync,
+  existsSync,
+  ensureDirSync,
+} from "fs-extra"
+import path from "path"
+import process from "process"
+import { execSync } from "child_process"
+import tmp from "tmp"
+import { sync as commandExistsSync } from "command-exists"
+import readlineSync from "readline-sync"
+import chalk from "chalk"
 
 export class SnapTool {
   constructor(toolName, log) {
@@ -17,10 +25,10 @@ export class SnapTool {
   }
 
   ensureCommands(cmds) {
-    this.cmds = (this.cmds || new Set())
+    this.cmds = this.cmds || new Set()
 
-    cmds.forEach(cmd => {
-      if (!this.cmds.has(cmd) &&!commandExistsSync(cmd)) {
+    cmds.forEach((cmd) => {
+      if (!this.cmds.has(cmd) && !commandExistsSync(cmd)) {
         throw new Error(`Command '${cmd}' does not exist.  Please install it.`)
       } else {
         this.cmds.add(cmd)
@@ -29,31 +37,39 @@ export class SnapTool {
   }
 
   getProject() {
-    if (!existsSync('package.json')) {
-      throw new Error('The current directory does not contain a package.json file')
+    if (!existsSync("package.json")) {
+      throw new Error(
+        "The current directory does not contain a package.json file"
+      )
     }
 
-    const filenames = globSync('**/package.json',
-      { ignore: ['**/node_modules/**', '**/scratch/**'], realpath: true })
-    const dirNames = filenames.map(filename => (path.dirname(filename)))
-    const pkgMap = new Map(dirNames.map(dirName => ([dirName, {}])))
+    const filenames = globSync("**/package.json", {
+      ignore: ["**/node_modules/**", "**/scratch/**"],
+      realpath: true,
+    })
+    const dirNames = filenames.map((filename) => path.dirname(filename))
+    const pkgMap = new Map(dirNames.map((dirName) => [dirName, {}]))
     let edges = []
     let rootPkg = null
 
     for (let pair of pkgMap) {
       const [dirName, pkg] = pair
-      const content = JSON.parse(readFileSync(dirName + '/package.json', { encoding: 'utf8' }))
+      const content = JSON.parse(
+        readFileSync(dirName + "/package.json", { encoding: "utf8" })
+      )
 
       pkg.content = content
 
       if (dirName === process.cwd()) {
         rootPkg = pkg
       } else if (content.dependencies) {
-        const prefix = 'file:'
+        const prefix = "file:"
 
-        Object.entries(content.dependencies).forEach(arr => {
+        Object.entries(content.dependencies).forEach((arr) => {
           if (arr[1].startsWith(prefix)) {
-            const otherdirName = path.resolve(path.join(dirName, arr[1].substring(prefix.length)))
+            const otherdirName = path.resolve(
+              path.join(dirName, arr[1].substring(prefix.length))
+            )
 
             if (pkgMap.has(otherdirName)) {
               edges.push([dirName, otherdirName])
@@ -66,12 +82,12 @@ export class SnapTool {
     return {
       pkgs: pkgMap,
       order: toposort.array(dirNames, edges).reverse(),
-      rootPkg
+      rootPkg,
     }
   }
 
   startAll(project) {
-    this.ensureCommands(['osascript'])
+    this.ensureCommands(["osascript"])
 
     const tempFile = tmp.fileSync().name
     const rootDir = process.cwd()
@@ -91,10 +107,16 @@ export class SnapTool {
       let details = []
 
       if (preferActors) {
-        const actorNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith('actor:') && !s.endsWith(':debug'))
+        const actorNames = Object.getOwnPropertyNames(
+          pkg.content.scripts
+        ).filter((s) => s.startsWith("actor:") && !s.endsWith(":debug"))
 
         if (actorNames.length > 0) {
-          details = actorNames.map((name) => ({ name, title: name.substring('actor:'.length), color: '255 198 0' }))
+          details = actorNames.map((name) => ({
+            name,
+            title: name.substring("actor:".length),
+            color: "255 198 0",
+          }))
         }
       }
 
@@ -103,17 +125,28 @@ export class SnapTool {
           return
         }
 
-        const isLibrary = (pkg.content.keywords &&
-          ((Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes('library')) || pkg.content.keywords.hasOwnProperty('library')))
+        const isLibrary =
+          pkg.content.keywords &&
+          ((Array.isArray(pkg.content.keywords) &&
+            pkg.content.keywords.includes("library")) ||
+            pkg.content.keywords.hasOwnProperty("library"))
 
-        details = [{ name: 'start', title: path.basename(dirName), color: isLibrary ? '0 255 0' : '0 198 255' }]
+        details = [
+          {
+            name: "start",
+            title: path.basename(dirName),
+            color: isLibrary ? "0 255 0" : "0 198 255",
+          },
+        ]
       }
 
       details.forEach((detail) => {
         if (index == 0) {
           script += `
           tell current session of current tab
-          write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+          write text "cd ${dirName}; title ${detail.title}; tab-color ${
+            detail.color
+          }; npm run ${detail.name}"
           end tell
           `
         } else {
@@ -121,7 +154,9 @@ export class SnapTool {
           set newTab to (create tab with default profile)
           tell newTab
           tell current session of newTab
-          write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+          write text "cd ${dirName}; title ${detail.title}; tab-color ${
+            detail.color
+          }; npm run ${detail.name}"
           end tell
           end tell
           `
@@ -138,19 +173,33 @@ export class SnapTool {
   }
 
   testAll(project) {
-    this.ensureCommands(['npm'])
+    this.ensureCommands(["npm"])
     project.order.forEach((dirName, index) => {
       const pkg = project.pkgs.get(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.test) {
         this.log.info2(`Testing '${path.basename(dirName)}'...`)
-        execSync(`npm test`, { cwd: dirName})
+        execSync(`npm test`, { cwd: dirName })
       }
     })
   }
 
+  cleanAll(project) {
+    this.ensureCommands(["npm"])
+
+    project.order.forEach((dirName, index) => {
+      const name = path.basename(dirName)
+
+      this.log.info2(`Cleaning '${name}'...`)
+      removeSync(path.join(dirName, "node_modules"))
+      removeSync(path.join(dirName, "package-lock.json"))
+      removeSync(path.join(dirName, "dist"))
+      removeSync(path.join(dirName, "build"))
+    })
+  }
+
   installAll(project) {
-    this.ensureCommands(['npm'])
+    this.ensureCommands(["npm"])
 
     if (this.args.clean) {
       this.cleanAll(project)
@@ -160,45 +209,34 @@ export class SnapTool {
       const pkg = project.pkgs.get(dirName)
       const name = path.basename(dirName)
 
-      this.log.info2(`Installing '${name}'...`)
-      execSync(`npm install`, { cwd: dirName})
-    })
-  }
-
-  cleanAll(project) {
-    this.ensureCommands(['npm'])
-
-    project.order.forEach((dirName, index) => {
-      const name = path.basename(dirName)
-
-      this.log.info2(`Cleaning '${name}'...`)
-      removeSync(path.join(dirName, 'node_modules'))
-      removeSync(path.join(dirName, 'package-lock.json'))
-      removeSync(path.join(dirName, 'dist'))
+      this.log.info2(`Installing modules in '${name}'...`)
+      execSync(`npm install`, { cwd: dirName })
     })
   }
 
   updateAll(project) {
-    this.ensureCommands(['npm'])
+    this.ensureCommands(["npm"])
 
     project.order.forEach((dirName, index) => {
       const pkg = project.pkgs.get(dirName)
       const name = path.basename(dirName)
 
       this.args.packages.forEach((pkgName) => {
-        if ((pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
-          (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])) {
+        if (
+          (pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
+          (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])
+        ) {
           this.log.info2(`Update '${pkgName}' in '${name}'...`)
-          execSync(`npm update ${pkgName}`, { cwd: dirName})
+          execSync(`npm update ${pkgName}`, { cwd: dirName })
         }
       })
     })
   }
 
   buildAll(project) {
-    this.ensureCommands(['npm'])
+    this.ensureCommands(["npm"])
 
-    if (this.args.clean) {
+    if (this.args.install) {
       this.installAll(project)
     }
 
@@ -208,74 +246,134 @@ export class SnapTool {
 
       if (pkg.content.scripts && pkg.content.scripts.build) {
         this.log.info2(`Building '${name}'...`)
-        execSync('npm run build', { cwd: dirName})
+        execSync("npm run build", { cwd: dirName })
+      }
+    })
+  }
+
+  deployAll(project) {
+    this.ensureCommands(["npm"])
+
+    let defaultUser = process.env.SNAP_DEPLOY_USER || ""
+    let defaultHost = process.env.SNAP_DEPLOY_HOST || ""
+    let user =
+      readlineSync.question(
+        "Deploy as user? " + chalk.gray(`[${defaultUser}]`) + " "
+      ) || defaultUser
+    let host =
+      readlineSync.question(
+        "Deploy to host? " + chalk.gray(`[${defaultHost}]`) + " "
+      ) || defaultHost
+
+    if (!user || !host) {
+      this.log.error("Deployment user and host must be specified.")
+    }
+
+    project.order.forEach((dirName, index) => {
+      const pkg = project.pkgs.get(dirName)
+      const name = path.basename(dirName)
+
+      if (pkg.content.scripts && pkg.content.scripts.deploy) {
+        this.log.info2(`Deploying '${name}'...`)
+        execSync("npm run deploy", {
+          cwd: dirName,
+          env: {
+            ...process.env,
+            SNAP_DEPLOY_USER: user,
+            SNAP_DEPLOY_HOST: host,
+          },
+        })
       }
     })
   }
 
   release(project) {
-    this.ensureCommands(['stampver', 'git', 'npx', 'npm'])
+    this.ensureCommands(["stampver", "git", "npx", "npm"])
 
     if (!this.args.patch && !this.args.minor && !this.args.major) {
-      this.log.warning(`Major, minor or patch number must be incremented for release`)
+      this.log.warning(
+        `Major, minor or patch number must be incremented for release`
+      )
       return
     }
 
-    this.log.info2('Checking for Uncommitted Changes...')
+    this.log.info2("Checking for Uncommitted Changes...")
     try {
-      execSync('git diff-index --quiet HEAD --')
+      execSync("git diff-index --quiet HEAD --")
     } catch (error) {
-      throw new Error('There are uncomitted changes - commit or stash them and try again')
+      throw new Error(
+        "There are uncomitted changes - commit or stash them and try again"
+      )
     }
 
-    this.log.info2('Pulling...')
-    execSync('git pull')
+    this.log.info2("Pulling...")
+    execSync("git pull")
 
-    this.log.info2('Updating Version...')
-    ensureDirSync('scratch')
+    this.log.info2("Updating Version...")
+    ensureDirSync("scratch")
 
-    const incrFlag = this.args.patch ? '-i patch' : this.args.minor ? '-i minor' : this.args.major ? '-i major' : ''
+    const incrFlag = this.args.patch
+      ? "-i patch"
+      : this.args.minor
+        ? "-i minor"
+        : this.args.major
+          ? "-i major"
+          : ""
 
     execSync(`npx stampver ${incrFlag} -u`)
-    const tagName = readFileSync('scratch/version.tag.txt')
-    const tagDescription = readFileSync('scratch/version.desc.txt')
+    const tagName = readFileSync("scratch/version.tag.txt")
+    const tagDescription = readFileSync("scratch/version.desc.txt")
 
     try {
-      this.log.info2('Building...')
+      this.log.info2("Building...")
       this.buildAll(project)
-      this.log.info2('Testing...')
+      this.log.info2("Testing...")
       this.testAll(project)
 
-      this.log.info2('Committing Version Changes...')
-      execSync('git add :/')
+      this.log.info2("Committing Version Changes...")
+      execSync("git add :/")
 
       if (this.args.patch || this.args.minor || this.args.major) {
-        this.log.info2('Tagging...')
+        this.log.info2("Tagging...")
         execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
       }
 
       execSync(`git commit -m '${tagDescription}'`)
     } catch (error) {
       // Roll back version changes if anything went wrong
-      execSync('git checkout -- .')
+      execSync("git checkout -- .")
       return
     }
 
-    this.log.info2('Pushing to Git...')
-    execSync('git push --follow-tags')
+    this.log.info2("Pushing to Git...")
+    execSync("git push --follow-tags")
 
-    if (this.args.npm && project.pkgs.size >= 1 && !project.rootPkg.content.private) {
-      this.log.info2('Publishing to NPM...')
-      execSync('npm publish')
+    if (
+      this.args.npm &&
+      project.pkgs.size >= 1 &&
+      !project.rootPkg.content.private
+    ) {
+      this.log.info2("Publishing to NPM...")
+      execSync("npm publish")
     }
   }
 
   async run(argv) {
     const options = {
-      boolean: [ 'help', 'version', 'patch', 'minor', 'major', 'clean', 'actors', 'npm' ],
+      boolean: [
+        "help",
+        "version",
+        "patch",
+        "minor",
+        "major",
+        "clean",
+        "install",
+        "actors",
+        "npm",
+      ],
       alias: {
-        'a': 'actors'
-      }
+        a: "actors",
+      },
     }
     this.args = parseArgs(argv, options)
 
@@ -287,16 +385,16 @@ export class SnapTool {
     const project = this.getProject()
     let command = this.args._[0]
 
-    command = command ? command.toLowerCase() : 'help'
+    command = command ? command.toLowerCase() : "help"
 
     switch (command) {
-      case 'start':
+      case "start":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} start [options]
 
 Description:
 
-Runs 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively run 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
 
 Options:
   --actors, -a    If one or more 'actor:*' scripts are found in the package.json,
@@ -306,31 +404,53 @@ Options:
         }
         this.startAll(project)
         break
-      case 'build':
+
+      case "build":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} build
 
 Description:
 
-Runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively run 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+
+Options:
+  --install       Recursively runs 'npm install' before building
+  --clean         If '--install' is specified, does a 'clean' first
 `)
           return 0
         }
         this.buildAll(project)
         break
-      case 'test':
+
+      case "deploy":
+        if (this.args.help) {
+          this.log.info(`Usage: ${this.toolName} deploy
+
+Description:
+
+Recursively run 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
+You can set default values for the deployment user and host by setting the environment variables
+SNAP_DEPLOY_USER and SNAP_DEPLOY_HOST.
+`)
+          return 0
+        }
+        this.deployAll(project)
+        break
+
+      case "test":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} test
 
 Description:
 
-Runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
 `)
           return 0
         }
         this.testAll(project)
         break
-      case 'release':
+
+      case "release":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} release [options]
 
@@ -349,31 +469,34 @@ Options:
         }
         this.release(project)
         break
-      case 'clean':
+
+      case "clean":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} clean
 
 Description:
 
-Deletes all 'dist' and 'node_modules' directories, and 'package-lock.json' files recursively.
+Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock.json' files.
 `)
           return 0
         }
         this.cleanAll(project)
         break
-      case 'install':
+
+      case "install":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} install
 
 Description:
 
-Runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively run 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
 `)
           return 0
         }
         this.installAll(project)
         break
-      case 'update':
+
+      case "update":
         if (this.args.help) {
           this.log.info(`Usage: ${this.toolName} update
 
@@ -386,7 +509,8 @@ Runs 'npm update' in all directories containing 'package.json' except 'node_modu
         this.args.packages = this.args._.slice(1)
         this.updateAll(project)
         break
-      case 'help':
+
+      case "help":
       default:
         this.log.info(`
 Usage: ${this.toolName} <cmd> [options]
@@ -394,7 +518,8 @@ Usage: ${this.toolName} <cmd> [options]
 Commands:
   start       Run 'npm start' for all projects in new terminal tabs.
               Requires iTerm2 (https://www.iterm2.com/)
-  build       Run 'npm build' for all projects
+  build       Run 'npm run build' for all projects
+  deploy      Run 'npm run deploy' for all projects
   test        Run 'npm test' for all projects
   update      Run 'npm update <pkg>...' for all projects
   install     Run 'npm install' for all projects
