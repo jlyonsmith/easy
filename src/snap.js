@@ -23,6 +23,7 @@ tool
   .then((exitCode) => {
     process.exitCode = exitCode
   })
-  .catch((err) => {
-    console.error(err)
+  .catch((error) => {
+    // DEBUG: console.error(error)
+    log.error(error.message)
   })
