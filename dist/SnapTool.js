@@ -85,7 +85,15 @@ class SnapTool {
 
     for (let pair of pkgMap) {
       const [dirName, pkg] = pair;
-      const content = JSON.parse((0, _fsExtra.readFileSync)(dirName + "/package.json", { encoding: "utf8" }));
+      const packageFilename = dirName + "/package.json";
+      let content = null;
+
+      try {
+        content = JSON.parse((0, _fsExtra.readFileSync)(packageFilename, { encoding: "utf8" }));
+      } catch (error) {
+        this.log.error(`Reading ${packageFilename}`);
+        throw error;
+      }
 
       pkg.content = content;
 
@@ -315,7 +323,7 @@ class SnapTool {
 
     const incrFlag = this.args.patch ? "-i patch" : this.args.minor ? "-i minor" : this.args.major ? "-i major" : "";
 
-    (0, _child_process.execSync)(`npx stampver ${incrFlag} -u`);
+    (0, _child_process.execSync)(`npx stampver ${incrFlag} -u -s`);
     const tagName = (0, _fsExtra.readFileSync)("scratch/version.tag.txt");
     const tagDescription = (0, _fsExtra.readFileSync)("scratch/version.desc.txt");
 
