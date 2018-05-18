@@ -54,9 +54,17 @@ export class SnapTool {
 
     for (let pair of pkgMap) {
       const [dirName, pkg] = pair
-      const content = JSON.parse(
-        readFileSync(dirName + "/package.json", { encoding: "utf8" })
-      )
+      const packageFilename = dirName + "/package.json"
+      let content = null
+
+      try {
+        content = JSON.parse(
+          readFileSync(packageFilename, { encoding: "utf8" })
+        )
+      } catch (error) {
+        this.log.error(`Reading ${packageFilename}`)
+        throw error
+      }
 
       pkg.content = content
 
@@ -320,7 +328,7 @@ export class SnapTool {
           ? "-i major"
           : ""
 
-    execSync(`npx stampver ${incrFlag} -u`)
+    execSync(`npx stampver ${incrFlag} -u -s`)
     const tagName = readFileSync("scratch/version.tag.txt")
     const tagDescription = readFileSync("scratch/version.desc.txt")
 
