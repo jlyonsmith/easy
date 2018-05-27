@@ -262,19 +262,14 @@ export class SnapTool {
   deployAll(project) {
     this.ensureCommands(["npm"])
 
-    let defaultUser = process.env.SNAP_DEPLOY_USER || ""
-    let defaultHost = process.env.SNAP_DEPLOY_HOST || ""
-    let user =
+    let defaultUserHost = process.env.SNAP_DEPLOY_USER_HOST || ""
+    let userHost =
       readlineSync.question(
-        "Deploy as user? " + chalk.gray(`[${defaultUser}]`) + " "
-      ) || defaultUser
-    let host =
-      readlineSync.question(
-        "Deploy to host? " + chalk.gray(`[${defaultHost}]`) + " "
-      ) || defaultHost
+        "Deploy as user@host? " + chalk.gray(`[${defaultUserHost}]`) + " "
+      ) || defaultUserHost
 
-    if (!user || !host) {
-      this.log.error("Deployment user and host must be specified.")
+    if (!userHost || !/.+@.+/i.test(userHost)) {
+      this.log.error("Deployment user@host must be specified.")
     }
 
     project.order.forEach((dirName, index) => {
@@ -287,8 +282,7 @@ export class SnapTool {
           cwd: dirName,
           env: {
             ...process.env,
-            SNAP_DEPLOY_USER: user,
-            SNAP_DEPLOY_HOST: host,
+            SNAP_DEPLOY_USER_HOST: userHost,
           },
         })
       }

@@ -106,13 +106,13 @@ Deployment refers to uploading code to a backend system, such as for a website o
 snap deploy
 ```
 
-You can set `SNAP_DEPLOY_USER` and `SNAP_DEPLOY_HOST` in your `.bashrc` file to set default values for the deploymnet user and host.  These values are typically used in for your `ssh` user &amp; host.
+You can set `SNAP_DEPLOY_USER_HOST` in your `.bashrc` file to set default values for the deploymnet `user@host`.  This value is typically used in for your `ssh` user &amp; host.
 
 Here's an example `deploy` script in a `package.json`:
 
 ```
   ...
-  "deploy": "rsync -vr -e ssh --exclude-from .rsync-exclude * $SNAP_DEPLOY_USER@$SNAP_DEPLOY_HOST:my-server/ && ssh $SNAP_DEPLOY_USER@$SNAP_DEPLOY_HOST 'cd my-app && npm install && sudo systemctl restart my-app'",
+  "deploy": "rsync -vr -e ssh --exclude-from .rsync-exclude * $SNAP_DEPLOY_USER_HOST:my-server/ && ssh $SNAP_DEPLOY_USER_HOST 'cd my-app && npm install && sudo systemctl restart my-app'",
   ...
 ```
 
