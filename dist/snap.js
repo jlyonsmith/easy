@@ -30,7 +30,8 @@ const tool = new _SnapTool.SnapTool(_path2.default.basename(process.argv[1], ".j
 
 tool.run(process.argv.slice(2)).then(exitCode => {
   process.exitCode = exitCode;
-}).catch(err => {
-  console.error(err);
+}).catch(error => {
+  // DEBUG: console.error(error)
+  log.error(error.message);
 });
 //# sourceMappingURL=snap.js.map
