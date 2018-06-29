@@ -275,10 +275,15 @@ class SnapTool {
     this.ensureCommands(["npm"]);
 
     let defaultUserHost = _process2.default.env.SNAP_DEPLOY_USER_HOST || "";
-    let userHost = _readlineSync2.default.question("Deploy as user@host? " + _chalk2.default.gray(`[${defaultUserHost}]`) + " ") || defaultUserHost;
+    let userHost = defaultUserHost;
+
+    if (!userHost || this.args.prompt) {
+      userHost = _readlineSync2.default.question("Deploy as user@host? " + _chalk2.default.gray(`[${defaultUserHost}]`) + " ") || defaultUserHost;
+    }
 
     if (!userHost || !/.+@.+/i.test(userHost)) {
       this.log.error("Deployment user@host must be specified.");
+      return;
     }
 
     project.order.forEach((dirName, index) => {
@@ -356,9 +361,10 @@ class SnapTool {
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "npm"],
+      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "npm", "prompt"],
       alias: {
-        a: "actors"
+        a: "actors",
+        p: "prompt"
       }
     };
     this.args = (0, _minimist2.default)(argv, options);
@@ -380,7 +386,7 @@ class SnapTool {
 
 Description:
 
-Recursively run 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm start' in all directories containing 'package.json' except 'node_modules/**'.
 
 Options:
   --actors, -a    If one or more 'actor:*' scripts are found in the package.json,
@@ -397,7 +403,7 @@ Options:
 
 Description:
 
-Recursively run 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
 
 Options:
   --install       Recursively runs 'npm install' before building
@@ -414,9 +420,12 @@ Options:
 
 Description:
 
-Recursively run 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
-You can set default values for the deployment user and host by setting the environment variables
-SNAP_DEPLOY_USER and SNAP_DEPLOY_HOST.
+Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
+You can set default values for the deployment user and host by setting the environment variable
+SNAP_DEPLOY_USER_HOST, e.g. user@host
+
+Options:
+  --prompt, -p     Prompt for user/host even if the environment variable is set
 `);
           return 0;
         }
@@ -475,7 +484,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 
 Description:
 
-Recursively run 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
 `);
           return 0;
         }
@@ -488,7 +497,7 @@ Recursively run 'npm install' in all directories containing 'package.json' excep
 
 Description:
 
-Runs 'npm update' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm update' in all directories containing 'package.json' except 'node_modules/**'.
 `);
           return 0;
         }
