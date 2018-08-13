@@ -105,14 +105,15 @@ export class SnapTool {
     tell application "iTerm"
       tell (create window with default profile)
     `
-    project.order.forEach((dirName, index) => {
+    // Loop through package.json dirs
+    project.order.forEach((dirName) => {
       const pkg = project.pkgs.get(dirName)
 
       if (!pkg.content.scripts) {
         return
       }
 
-      let details = []
+      let tabDetails = []
 
       if (preferActors) {
         const actorNames = Object.getOwnPropertyNames(
@@ -120,7 +121,7 @@ export class SnapTool {
         ).filter((s) => s.startsWith("actor:") && !s.endsWith(":debug"))
 
         if (actorNames.length > 0) {
-          details = actorNames.map((name) => ({
+          tabDetails = actorNames.map((name) => ({
             name,
             title: name.substring("actor:".length),
             color: "255 198 0",
@@ -128,7 +129,7 @@ export class SnapTool {
         }
       }
 
-      if (details.length === 0) {
+      if (tabDetails.length === 0) {
         if (!pkg.content.scripts.start) {
           return
         }
@@ -139,7 +140,7 @@ export class SnapTool {
             pkg.content.keywords.includes("library")) ||
             pkg.content.keywords.hasOwnProperty("library"))
 
-        details = [
+        tabDetails = [
           {
             name: "start",
             title: path.basename(dirName),
@@ -148,7 +149,7 @@ export class SnapTool {
         ]
       }
 
-      details.forEach((detail) => {
+      tabDetails.forEach((detail, index) => {
         if (index == 0) {
           script += `
           tell current session of current tab
@@ -177,6 +178,11 @@ export class SnapTool {
     `
 
     writeFileSync(tempFile, script)
+
+    if (this.args.debug) {
+      this.log.info(script)
+    }
+
     execSync(`osascript < ${tempFile}`)
   }
 
@@ -378,10 +384,12 @@ export class SnapTool {
         "actors",
         "npm",
         "prompt",
+        "debug",
       ],
       alias: {
         a: "actors",
         p: "prompt",
+        d: "debug",
       },
     }
     this.args = parseArgs(argv, options)
