@@ -132,20 +132,21 @@ class SnapTool {
     tell application "iTerm"
       tell (create window with default profile)
     `;
-    project.order.forEach((dirName, index) => {
+    // Loop through package.json dirs
+    project.order.forEach(dirName => {
       const pkg = project.pkgs.get(dirName);
 
       if (!pkg.content.scripts) {
         return;
       }
 
-      let details = [];
+      let tabDetails = [];
 
       if (preferActors) {
         const actorNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith("actor:") && !s.endsWith(":debug"));
 
         if (actorNames.length > 0) {
-          details = actorNames.map(name => ({
+          tabDetails = actorNames.map(name => ({
             name,
             title: name.substring("actor:".length),
             color: "255 198 0"
@@ -153,21 +154,21 @@ class SnapTool {
         }
       }
 
-      if (details.length === 0) {
+      if (tabDetails.length === 0) {
         if (!pkg.content.scripts.start) {
           return;
         }
 
         const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes("library") || pkg.content.keywords.hasOwnProperty("library"));
 
-        details = [{
+        tabDetails = [{
           name: "start",
           title: _path2.default.basename(dirName),
           color: isLibrary ? "0 255 0" : "0 198 255"
         }];
       }
 
-      details.forEach(detail => {
+      tabDetails.forEach((detail, index) => {
         if (index == 0) {
           script += `
           tell current session of current tab
@@ -192,6 +193,11 @@ class SnapTool {
     `;
 
     (0, _fsExtra.writeFileSync)(tempFile, script);
+
+    if (this.args.debug) {
+      this.log.info(script);
+    }
+
     (0, _child_process.execSync)(`osascript < ${tempFile}`);
   }
 
@@ -361,10 +367,11 @@ class SnapTool {
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "npm", "prompt"],
+      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "npm", "prompt", "debug"],
       alias: {
         a: "actors",
-        p: "prompt"
+        p: "prompt",
+        d: "debug"
       }
     };
     this.args = (0, _minimist2.default)(argv, options);
