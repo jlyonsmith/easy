@@ -153,7 +153,7 @@ export class SnapTool {
         if (index == 0) {
           script += `
           tell current session of current tab
-          write text "cd ${dirName}; title ${detail.title}; tab-color ${
+          write text "cd ${dirName}; title ${detail.title}; tabcolor ${
             detail.color
           }; npm run ${detail.name}"
           end tell
@@ -163,7 +163,7 @@ export class SnapTool {
           set newTab to (create tab with default profile)
           tell newTab
           tell current session of newTab
-          write text "cd ${dirName}; title ${detail.title}; tab-color ${
+          write text "cd ${dirName}; title ${detail.title}; tabcolor ${
             detail.color
           }; npm run ${detail.name}"
           end tell
@@ -183,7 +183,18 @@ export class SnapTool {
       this.log.info(script)
     }
 
-    execSync(`osascript < ${tempFile}`)
+    execSync(
+      `function title {
+      printf "\\x1b]0;%s\\x7" "$1"
+    }
+    function tab-color {
+      printf "\\x1b]6;1;bg;red;brightness;%s\\x7" "$1"
+      printf "\\x1b]6;1;bg;green;brightness;%s\\x7" "$2"
+      printf "\\x1b]6;1;bg;blue;brightness;%s\\x7" "$3"
+    }
+    osascript < ${tempFile}`,
+      { shell: "/bin/bash" }
+    )
   }
 
   testAll(project) {
