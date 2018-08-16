@@ -8,13 +8,13 @@
   buildFormat: "full",
   tags: {
     major: 2,
-    minor: 2,
+    minor: 3,
     patch: 0,
-    build: 20180813,
+    build: 20180816,
     revision: 0,
     tz: "America/Los_Angeles",
     startYear: "2017",
-    sequence: 3
+    sequence: 4
   },
   fileTypes: [
     {
