@@ -124,13 +124,29 @@ class SnapTool {
   startAll(project) {
     this.ensureCommands(["osascript"]);
 
-    const tempFile = _tmp2.default.fileSync().name;
+    const tmpObjMain = _tmp2.default.fileSync();
+    const tmpObjHelper = _tmp2.default.fileSync();
     const rootDir = _process2.default.cwd();
     const preferActors = !!this.args.actors;
 
+    (0, _fsExtra.writeFileSync)(tmpObjHelper.name, `# function for setting iTerm2 titles
+function title {
+  printf "\\x1b]0;%s\\x7" "$1"
+}
+
+# function for setting iTerm2 tab colors
+function tab-color {
+  printf "\\x1b]6;1;bg;red;brightness;%s\\x7" "$1"
+  printf "\\x1b]6;1;bg;green;brightness;%s\\x7" "$2"
+  printf "\\x1b]6;1;bg;blue;brightness;%s\\x7" "$3"
+}
+
+clear
+`);
+
     let script = `
-    tell application "iTerm"
-      tell (create window with default profile)
+tell application "iTerm"
+  tell (create window with default profile)
     `;
     // Loop through package.json dirs
     project.order.forEach(dirName => {
@@ -171,42 +187,36 @@ class SnapTool {
       tabDetails.forEach((detail, index) => {
         if (index == 0) {
           script += `
-          tell current session of current tab
-          write text "cd ${dirName}; title ${detail.title}; tabcolor ${detail.color}; npm run ${detail.name}"
-          end tell
-          `;
+    tell current session of current tab
+      write contents of file "${tmpObjHelper.name}"
+      write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+    end tell
+`;
         } else {
           script += `
-          set newTab to (create tab with default profile)
-          tell newTab
-          tell current session of newTab
-          write text "cd ${dirName}; title ${detail.title}; tabcolor ${detail.color}; npm run ${detail.name}"
-          end tell
-          end tell
-          `;
+    set newTab to (create tab with default profile)
+    tell newTab
+      tell current session of newTab
+        write contents of file "${tmpObjHelper.name}"
+        write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+      end tell
+    end tell
+`;
         }
       });
     });
     script += `
-      end tell
-    end tell
-    `;
+  end tell
+end tell
+`;
 
-    (0, _fsExtra.writeFileSync)(tempFile, script);
+    (0, _fsExtra.writeFileSync)(tmpObjMain.name, script);
 
     if (this.args.debug) {
       this.log.info(script);
     }
 
-    (0, _child_process.execSync)(`function title {
-      printf "\\x1b]0;%s\\x7" "$1"
-    }
-    function tab-color {
-      printf "\\x1b]6;1;bg;red;brightness;%s\\x7" "$1"
-      printf "\\x1b]6;1;bg;green;brightness;%s\\x7" "$2"
-      printf "\\x1b]6;1;bg;blue;brightness;%s\\x7" "$3"
-    }
-    osascript < ${tempFile}`, { shell: "/bin/bash" });
+    (0, _child_process.execSync)(`osascript < ${tmpObjMain.name}`);
   }
 
   testAll(project) {
