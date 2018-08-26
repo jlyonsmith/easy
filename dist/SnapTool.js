@@ -140,14 +140,14 @@ function tab-color {
   printf "\\x1b]6;1;bg;green;brightness;%s\\x7" "$2"
   printf "\\x1b]6;1;bg;blue;brightness;%s\\x7" "$3"
 }
-
-clear
 `);
 
     let script = `
 tell application "iTerm"
   tell (create window with default profile)
     `;
+    let firstTab = true;
+
     // Loop through package.json dirs
     project.order.forEach(dirName => {
       const pkg = project.pkgs.get(dirName);
@@ -184,20 +184,19 @@ tell application "iTerm"
         }];
       }
 
-      tabDetails.forEach((detail, index) => {
-        if (index == 0) {
+      tabDetails.forEach(detail => {
+        if (firstTab) {
           script += `
     tell current session of current tab
-      write contents of file "${tmpObjHelper.name}"
       write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
     end tell
 `;
+          firstTab = false;
         } else {
           script += `
     set newTab to (create tab with default profile)
     tell newTab
       tell current session of newTab
-        write contents of file "${tmpObjHelper.name}"
         write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
       end tell
     end tell
@@ -216,7 +215,9 @@ end tell
       this.log.info(script);
     }
 
-    (0, _child_process.execSync)(`osascript < ${tmpObjMain.name}`);
+    (0, _child_process.execSync)(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, {
+      shell: "/bin/bash"
+    });
   }
 
   testAll(project) {
