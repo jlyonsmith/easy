@@ -360,6 +360,8 @@ end tell
     const tagDescription = readFileSync("scratch/version.desc.txt")
 
     try {
+      this.log.info2("Installing...")
+      this.installAll(project)
       this.log.info2("Building...")
       this.buildAll(project)
       this.log.info2("Testing...")
