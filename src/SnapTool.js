@@ -1,7 +1,6 @@
 import { sync as globSync } from "glob"
 import parseArgs from "minimist"
 import { fullVersion } from "./version"
-import util from "util"
 import toposort from "toposort"
 import {
   readFileSync,
@@ -12,11 +11,9 @@ import {
 } from "fs-extra"
 import path from "path"
 import process from "process"
-import { execSync } from "child_process"
+import { execSync, exec } from "child_process"
 import tmp from "tmp"
 import { sync as commandExistsSync } from "command-exists"
-import readlineSync from "readline-sync"
-import chalk from "chalk"
 
 export class SnapTool {
   constructor(toolName, log) {
@@ -36,7 +33,7 @@ export class SnapTool {
     })
   }
 
-  getProject() {
+  getPackageInfo() {
     if (!existsSync("package.json")) {
       throw new Error(
         "The current directory does not contain a package.json file"
@@ -94,12 +91,11 @@ export class SnapTool {
     }
   }
 
-  startAll(project) {
+  startAll(pkgInfo) {
     this.ensureCommands(["osascript"])
 
     const tmpObjMain = tmp.fileSync()
     const tmpObjHelper = tmp.fileSync()
-    const rootDir = process.cwd()
     const preferActors = !!this.args.actors
 
     writeFileSync(
@@ -125,8 +121,8 @@ tell application "iTerm"
     let firstTab = true
 
     // Loop through package.json dirs
-    project.order.forEach((dirName) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
 
       if (!pkg.content.scripts) {
         return
@@ -208,10 +204,10 @@ end tell
     })
   }
 
-  testAll(project) {
+  testAll(pkgInfo) {
     this.ensureCommands(["npm"])
-    project.order.forEach((dirName, index) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.test) {
         this.log.info2(`Testing '${path.basename(dirName)}'...`)
@@ -220,10 +216,10 @@ end tell
     })
   }
 
-  cleanAll(project) {
+  cleanAll(pkgInfo) {
     this.ensureCommands(["npm"])
 
-    project.order.forEach((dirName, index) => {
+    pkgInfo.order.forEach((dirName, index) => {
       const name = path.basename(dirName)
 
       this.log.info2(`Cleaning '${name}'...`)
@@ -234,15 +230,15 @@ end tell
     })
   }
 
-  installAll(project) {
+  installAll(pkgInfo) {
     this.ensureCommands(["npm"])
 
     if (this.args.clean) {
-      this.cleanAll(project)
+      this.cleanAll(pkgInfo)
     }
 
-    project.order.forEach((dirName, index) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
       const name = path.basename(dirName)
 
       this.log.info2(`Installing modules in '${name}'...`)
@@ -250,11 +246,11 @@ end tell
     })
   }
 
-  updateAll(project) {
+  updateAll(pkgInfo) {
     this.ensureCommands(["npm"])
 
-    project.order.forEach((dirName, index) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
       const name = path.basename(dirName)
 
       this.args.packages.forEach((pkgName) => {
@@ -269,15 +265,15 @@ end tell
     })
   }
 
-  buildAll(project) {
+  buildAll(pkgInfo) {
     this.ensureCommands(["npm"])
 
     if (this.args.install) {
-      this.installAll(project)
+      this.installAll(pkgInfo)
     }
 
-    project.order.forEach((dirName, index) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
       const name = path.basename(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.build) {
@@ -287,42 +283,65 @@ end tell
     })
   }
 
-  deployAll(project) {
+  deployAll(pkgInfo) {
     this.ensureCommands(["npm"])
 
-    let defaultUserHost = process.env.SNAP_DEPLOY_USER_HOST || ""
-    let userHost = defaultUserHost
+    const internalExec = (command, options) => {
+      return new Promise((resolve, reject) => {
+        const cp = exec(command, options)
 
-    if (!userHost || this.args.prompt) {
-      userHost =
-        readlineSync.question(
-          "Deploy as user@host? " + chalk.gray(`[${defaultUserHost}]`) + " "
-        ) || defaultUserHost
+        cp.stdout.on("data", (data) => {
+          const s = data.toString().trim()
+
+          if (this.args.ansible) {
+            if (s.startsWith("ok: ")) {
+              this.log.ansibleOK(s)
+            } else if (s.startsWith("changed: ")) {
+              this.log.ansibleChanged(s)
+            } else if (s.startsWith("skipping: ")) {
+              this.log.ansibleSkipping(s)
+            } else if (s.startsWith("error: ")) {
+              this.log.ansibleError(s)
+            } else {
+              this.log.info(s)
+            }
+          } else {
+            this.log.info(s)
+          }
+        })
+
+        cp.stderr.on("data", (data) => {
+          this.log.error(data.toString().trim())
+        })
+
+        cp.on("error", () => {
+          reject()
+        })
+
+        cp.on("exit", function(code) {
+          if (code !== 0) {
+            reject()
+          } else {
+            resolve()
+          }
+        })
+      })
     }
 
-    if (!userHost || !/.+@.+/i.test(userHost)) {
-      this.log.error("Deployment user@host must be specified.")
-      return
-    }
-
-    project.order.forEach((dirName, index) => {
-      const pkg = project.pkgs.get(dirName)
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
       const name = path.basename(dirName)
 
       if (pkg.content.scripts && pkg.content.scripts.deploy) {
         this.log.info2(`Deploying '${name}'...`)
-        execSync("npm run deploy", {
+        internalExec("npm run deploy", {
           cwd: dirName,
-          env: {
-            ...process.env,
-            SNAP_DEPLOY_USER_HOST: userHost,
-          },
         })
       }
     })
   }
 
-  release(project) {
+  releaseAll(pkgInfo) {
     this.ensureCommands(["stampver", "git", "npx", "npm"])
 
     if (!this.args.patch && !this.args.minor && !this.args.major) {
@@ -332,66 +351,77 @@ end tell
       return
     }
 
-    this.log.info2("Checking for Uncommitted Changes...")
-    try {
-      execSync("git diff-index --quiet HEAD --")
-    } catch (error) {
-      throw new Error(
-        "There are uncomitted changes - commit or stash them and try again"
-      )
-    }
+    pkgInfo.order.forEach((dirName, index) => {
+      const pkg = pkgInfo.pkgs.get(dirName)
+      const name = path.basename(dirName)
 
-    this.log.info2("Pulling...")
-    execSync("git pull")
+      this.log.info2(`Releasing '${name}'...`)
 
-    this.log.info2("Updating Version...")
-    ensureDirSync("scratch")
-
-    const incrFlag = this.args.patch
-      ? "-i patch"
-      : this.args.minor
-        ? "-i minor"
-        : this.args.major
-          ? "-i major"
-          : ""
-
-    execSync(`npx stampver ${incrFlag} -u -s`)
-    const tagName = readFileSync("scratch/version.tag.txt")
-    const tagDescription = readFileSync("scratch/version.desc.txt")
-
-    try {
-      this.log.info2("Installing...")
-      this.installAll(project)
-      this.log.info2("Building...")
-      this.buildAll(project)
-      this.log.info2("Testing...")
-      this.testAll(project)
-
-      this.log.info2("Committing Version Changes...")
-      execSync("git add :/")
-
-      if (this.args.patch || this.args.minor || this.args.major) {
-        this.log.info2("Tagging...")
-        execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
+      this.log.info2("Checking for Uncommitted Changes...")
+      try {
+        execSync("git diff-index --quiet HEAD --")
+      } catch (error) {
+        throw new Error(
+          "There are uncomitted changes - commit or stash them and try again"
+        )
       }
 
-      execSync(`git commit -m '${tagDescription}'`)
-    } catch (error) {
-      // Roll back version changes if anything went wrong
-      execSync("git checkout -- .")
-      return
-    }
+      this.log.info2("Pulling...")
+      execSync("git pull")
 
-    this.log.info2("Pushing to Git...")
-    execSync("git push --follow-tags")
+      this.log.info2("Updating Version...")
+      ensureDirSync("scratch")
 
-    if (
-      this.args.npm &&
-      project.pkgs.size >= 1 &&
-      !project.rootPkg.content.private
-    ) {
-      this.log.info2("Publishing to NPM...")
-      execSync("npm publish")
+      const incrFlag = this.args.patch
+        ? "-i patch"
+        : this.args.minor
+          ? "-i minor"
+          : this.args.major
+            ? "-i major"
+            : ""
+
+      execSync(`npx stampver ${incrFlag} -u -s`)
+      const tagName = readFileSync("scratch/version.tag.txt")
+      const tagDescription = readFileSync("scratch/version.desc.txt")
+
+      try {
+        this.log.info2("Installing...")
+        this.installAll(pkg)
+        this.log.info2("Building...")
+        this.buildAll(pkg)
+        this.log.info2("Testing...")
+        this.testAll(pkg)
+
+        this.log.info2("Committing Version Changes...")
+        execSync("git add :/")
+
+        if (this.args.patch || this.args.minor || this.args.major) {
+          this.log.info2("Tagging...")
+          execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
+        }
+
+        execSync(`git commit -m '${tagDescription}'`)
+      } catch (error) {
+        // Roll back version changes if anything went wrong
+        execSync("git checkout -- .")
+        return
+      }
+
+      this.log.info2("Pushing to Git...")
+      execSync("git push --follow-tags")
+
+      if (
+        this.args.npm &&
+        pkgInfo.pkgs.size >= 1 &&
+        !pkgInfo.rootPkg.content.private
+      ) {
+        this.log.info2("Publishing to NPM...")
+        execSync("npm publish")
+      }
+    })
+
+    if (!this.args.npm && this.args.deploy) {
+      this.deployAll(pkgInfo)
     }
   }
 
@@ -407,13 +437,11 @@ end tell
         "install",
         "actors",
         "npm",
-        "prompt",
         "debug",
+        "ansible",
       ],
       alias: {
         a: "actors",
-        p: "prompt",
-        d: "debug",
       },
     }
     this.args = parseArgs(argv, options)
@@ -423,7 +451,7 @@ end tell
       return 0
     }
 
-    const project = this.getProject()
+    const pkgInfo = this.getPackageInfo()
     let command = this.args._[0]
 
     command = command ? command.toLowerCase() : "help"
@@ -443,7 +471,7 @@ Options:
 `)
           return 0
         }
-        this.startAll(project)
+        this.startAll(pkgInfo)
         break
 
       case "build":
@@ -460,7 +488,7 @@ Options:
 `)
           return 0
         }
-        this.buildAll(project)
+        this.buildAll(pkgInfo)
         break
 
       case "deploy":
@@ -470,15 +498,14 @@ Options:
 Description:
 
 Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
-You can set default values for the deployment user and host by setting the environment variable
-SNAP_DEPLOY_USER_HOST, e.g. user@host
 
 Options:
-  --prompt, -p     Prompt for user/host even if the environment variable is set
+  --ansible     Colorize Ansible output if detected
+
 `)
           return 0
         }
-        this.deployAll(project)
+        this.deployAll(pkgInfo)
         break
 
       case "test":
@@ -491,7 +518,7 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
 `)
           return 0
         }
-        this.testAll(project)
+        this.testAll(pkgInfo)
         break
 
       case "release":
@@ -508,10 +535,11 @@ Options:
   --minor       Release minor version
   --patch       Release a patch
   --npm         Push a non-private build to NPM (http://npmjs.org)
+  --deploy      Run a deployment after a success release. Cannot be used with --npm.
 `)
           return 0
         }
-        this.release(project)
+        this.releaseAll(pkgInfo)
         break
 
       case "clean":
@@ -524,7 +552,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 `)
           return 0
         }
-        this.cleanAll(project)
+        this.cleanAll(pkgInfo)
         break
 
       case "install":
@@ -537,7 +565,7 @@ Recursively runs 'npm install' in all directories containing 'package.json' exce
 `)
           return 0
         }
-        this.installAll(project)
+        this.installAll(pkgInfo)
         break
 
       case "update":
@@ -551,7 +579,7 @@ Recursively runs 'npm update' in all directories containing 'package.json' excep
           return 0
         }
         this.args.packages = this.args._.slice(1)
-        this.updateAll(project)
+        this.updateAll(pkgInfo)
         break
 
       case "help":
@@ -559,20 +587,26 @@ Recursively runs 'npm update' in all directories containing 'package.json' excep
         this.log.info(`
 Usage: ${this.toolName} <cmd> [options]
 
+Description:
+
+By default, operates on all packages from the current directory recursively.
+
 Commands:
-  start       Run 'npm start' for all projects in new terminal tabs.
+  start       Run 'npm start' in new terminal tabs.
               Requires iTerm2 (https://www.iterm2.com/)
-  build       Run 'npm run build' for all projects
-  deploy      Run 'npm run deploy' for all projects
-  test        Run 'npm test' for all projects
-  update      Run 'npm update <pkg>...' for all projects
-  install     Run 'npm install' for all projects
-  clean       Remove 'node_modules' and distribution files for all packages
+  build       Run 'npm run build'
+  deploy      Run 'npm run deploy'
+  test        Run 'npm test'
+  update      Run 'npm update <pkg>...'
+  install     Run 'npm install'
+  clean       Remove 'node_modules' and distribution files
   release     Increment version, build, test, tag and release
 
 Global Options:
-  --help                        Shows this help.
-  --version                     Shows the tool version.
+  --help                        Shows this help
+  --version                     Shows the tool version
+  --debug                       Enable debugging output
+  --no-recurse                  Don't recursive up the directory tree
 `)
         return 0
     }

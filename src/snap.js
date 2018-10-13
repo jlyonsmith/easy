@@ -14,8 +14,21 @@ const log = {
   warning: function() {
     console.error(chalk.yellow("warning:", [...arguments].join(" ")))
   },
+  ansibleOK: function() {
+    console.error(chalk.green([...arguments].join(" ")))
+  },
+  ansibleChanged: function() {
+    console.error(chalk.yellow([...arguments].join(" ")))
+  },
+  ansibleSkipping: function() {
+    console.error(chalk.cyan([...arguments].join(" ")))
+  },
+  ansibleError: function() {
+    console.error(chalk.red([...arguments].join(" ")))
+  },
 }
 
+const debug = argv.includes("--debug")
 const tool = new SnapTool(path.basename(process.argv[1], ".js"), log)
 
 tool
@@ -24,6 +37,10 @@ tool
     process.exitCode = exitCode
   })
   .catch((error) => {
-    // DEBUG: console.error(error)
+    process.exitCode = 200
     log.error(error.message)
+
+    if (debug) {
+      console.error(error)
+    }
   })
