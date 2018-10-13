@@ -2,16 +2,10 @@ import { sync as globSync } from "glob"
 import parseArgs from "minimist"
 import { fullVersion } from "./version"
 import toposort from "toposort"
-import {
-  readFileSync,
-  writeFileSync,
-  removeSync,
-  existsSync,
-  ensureDirSync,
-} from "fs-extra"
+import { readFile, writeFile, remove, exists, ensureDir } from "fs-extra"
 import path from "path"
 import process from "process"
-import { execSync, exec } from "child_process"
+import { exec } from "child_process"
 import tmp from "tmp"
 import { sync as commandExistsSync } from "command-exists"
 
@@ -33,8 +27,8 @@ export class SnapTool {
     })
   }
 
-  getPackageInfo() {
-    if (!existsSync("package.json")) {
+  async getPackageInfo() {
+    if (!(await exists("package.json"))) {
       throw new Error(
         "The current directory does not contain a package.json file"
       )
@@ -56,7 +50,7 @@ export class SnapTool {
 
       try {
         content = JSON.parse(
-          readFileSync(packageFilename, { encoding: "utf8" })
+          await readFile(packageFilename, { encoding: "utf8" })
         )
       } catch (error) {
         this.log.error(`Reading ${packageFilename}`)
@@ -91,14 +85,61 @@ export class SnapTool {
     }
   }
 
-  startAll(pkgInfo) {
+  execWithOutput(command, options) {
+    return new Promise((resolve, reject) => {
+      const cp = exec(command, options)
+      const re = new RegExp(/\n$/)
+
+      cp.stdout.on("data", (data) => {
+        const s = data.toString().replace(re, "")
+
+        if (this.args.ansible) {
+          if (s.startsWith("ok: ")) {
+            this.log.ansibleOK(s)
+          } else if (s.startsWith("changed: ")) {
+            this.log.ansibleChanged(s)
+          } else if (s.startsWith("skipping: ")) {
+            this.log.ansibleSkipping(s)
+          } else if (s.startsWith("error: ")) {
+            this.log.ansibleError(s)
+          } else {
+            this.log.info(s)
+          }
+        } else {
+          this.log.info(s)
+        }
+      })
+
+      cp.stderr.on("data", (data) => {
+        const s = data.toString().replace(re, "")
+
+        if (s !== "npm" && s !== "notice" && s !== "npm notice") {
+          this.log.info(s)
+        }
+      })
+
+      cp.on("error", () => {
+        reject()
+      })
+
+      cp.on("exit", function(code) {
+        if (code !== 0) {
+          reject()
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  async startAll() {
     this.ensureCommands(["osascript"])
 
     const tmpObjMain = tmp.fileSync()
     const tmpObjHelper = tmp.fileSync()
     const preferActors = !!this.args.actors
 
-    writeFileSync(
+    await writeFile(
       tmpObjHelper.name,
       `# function for setting iTerm2 titles
 function title {
@@ -121,11 +162,11 @@ tell application "iTerm"
     let firstTab = true
 
     // Loop through package.json dirs
-    pkgInfo.order.forEach((dirName) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
+    for (const dirName of this.pkgInfo.order) {
+      const pkg = this.pkgInfo.pkgs.get(dirName)
 
       if (!pkg.content.scripts) {
-        return
+        continue
       }
 
       let tabDetails = []
@@ -146,7 +187,7 @@ tell application "iTerm"
 
       if (tabDetails.length === 0) {
         if (!pkg.content.scripts.start) {
-          return
+          continue
         }
 
         const isLibrary =
@@ -187,161 +228,218 @@ tell application "iTerm"
 `
         }
       })
-    })
+    }
     script += `
   end tell
 end tell
 `
 
-    writeFileSync(tmpObjMain.name, script)
+    await writeFile(tmpObjMain.name, script)
 
     if (this.args.debug) {
       this.log.info(script)
     }
 
-    execSync(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, {
-      shell: "/bin/bash",
-    })
-  }
-
-  testAll(pkgInfo) {
-    this.ensureCommands(["npm"])
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-
-      if (pkg.content.scripts && pkg.content.scripts.test) {
-        this.log.info2(`Testing '${path.basename(dirName)}'...`)
-        execSync(`npm test`, { cwd: dirName })
+    await this.execWithOutput(
+      `source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`,
+      {
+        shell: "/bin/bash",
       }
-    })
+    )
   }
 
-  cleanAll(pkgInfo) {
-    this.ensureCommands(["npm"])
+  async test(dirName) {
+    const pkg = this.pkgInfo.pkgs.get(dirName)
 
-    pkgInfo.order.forEach((dirName, index) => {
-      const name = path.basename(dirName)
-
-      this.log.info2(`Cleaning '${name}'...`)
-      removeSync(path.join(dirName, "node_modules"))
-      removeSync(path.join(dirName, "package-lock.json"))
-      removeSync(path.join(dirName, "dist"))
-      removeSync(path.join(dirName, "build"))
-    })
+    if (pkg.content.scripts && pkg.content.scripts.test) {
+      this.log.info2(`Testing '${path.basename(dirName)}'...`)
+      await this.execWithOutput(`npm test`, { cwd: dirName })
+    }
   }
 
-  installAll(pkgInfo) {
+  async testAll() {
     this.ensureCommands(["npm"])
+
+    for (const dirName of this.pkgInfo.order) {
+      await this.test(dirName)
+    }
+  }
+
+  async clean(dirName) {
+    const name = path.basename(dirName)
+
+    this.log.info2(`Cleaning '${name}'...`)
+    await remove(path.join(dirName, "node_modules"))
+    await remove(path.join(dirName, "package-lock.json"))
+    await remove(path.join(dirName, "dist"))
+    await remove(path.join(dirName, "build"))
+  }
+
+  async cleanAll() {
+    this.ensureCommands(["npm"])
+
+    for (const dirName of this.pkgInfo.order) {
+      await this.clean(dirName)
+    }
+  }
+
+  async install(dirName) {
+    const name = path.basename(dirName)
 
     if (this.args.clean) {
-      this.cleanAll(pkgInfo)
+      await this.clean(dirName)
     }
 
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-      const name = path.basename(dirName)
-
-      this.log.info2(`Installing modules in '${name}'...`)
-      execSync(`npm install`, { cwd: dirName })
-    })
+    this.log.info2(`Installing modules in '${name}'...`)
+    await this.execWithOutput(`npm install`, { cwd: dirName })
   }
 
-  updateAll(pkgInfo) {
+  async installAll() {
     this.ensureCommands(["npm"])
 
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-      const name = path.basename(dirName)
-
-      this.args.packages.forEach((pkgName) => {
-        if (
-          (pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
-          (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])
-        ) {
-          this.log.info2(`Update '${pkgName}' in '${name}'...`)
-          execSync(`npm update ${pkgName}`, { cwd: dirName })
-        }
-      })
-    })
+    for (const dirName of this.pkgInfo.order) {
+      await this.install(dirName)
+    }
   }
 
-  buildAll(pkgInfo) {
+  async update(dirName) {
+    const pkg = this.pkgInfo.pkgs.get(dirName)
+    const name = path.basename(dirName)
+
+    for (const pkgName of this.args.packages) {
+      if (
+        (pkg.content.dependencies && pkg.content.dependencies[pkgName]) ||
+        (pkg.content.devDependencies && pkg.content.devDependencies[pkgName])
+      ) {
+        this.log.info2(`Update '${pkgName}' in '${name}'...`)
+        await this.execWithOutput(`npm update ${pkgName}`, { cwd: dirName })
+      }
+    }
+  }
+
+  async updateAll() {
     this.ensureCommands(["npm"])
+
+    for (const dirName of this.pkgInfo.order) {
+      await this.update(dirName)
+    }
+  }
+
+  async build(dirName) {
+    const pkg = this.pkgInfo.pkgs.get(dirName)
+    const name = path.basename(dirName)
 
     if (this.args.install) {
-      this.installAll(pkgInfo)
+      await this.install(dirName)
     }
 
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-      const name = path.basename(dirName)
-
-      if (pkg.content.scripts && pkg.content.scripts.build) {
-        this.log.info2(`Building '${name}'...`)
-        execSync("npm run build", { cwd: dirName })
-      }
-    })
+    if (pkg.content.scripts && pkg.content.scripts.build) {
+      this.log.info2(`Building '${name}'...`)
+      await this.execWithOutput("npm run build", { cwd: dirName })
+    }
   }
 
-  deployAll(pkgInfo) {
+  async buildAll() {
     this.ensureCommands(["npm"])
 
-    const internalExec = (command, options) => {
-      return new Promise((resolve, reject) => {
-        const cp = exec(command, options)
-
-        cp.stdout.on("data", (data) => {
-          const s = data.toString().trim()
-
-          if (this.args.ansible) {
-            if (s.startsWith("ok: ")) {
-              this.log.ansibleOK(s)
-            } else if (s.startsWith("changed: ")) {
-              this.log.ansibleChanged(s)
-            } else if (s.startsWith("skipping: ")) {
-              this.log.ansibleSkipping(s)
-            } else if (s.startsWith("error: ")) {
-              this.log.ansibleError(s)
-            } else {
-              this.log.info(s)
-            }
-          } else {
-            this.log.info(s)
-          }
-        })
-
-        cp.stderr.on("data", (data) => {
-          this.log.error(data.toString().trim())
-        })
-
-        cp.on("error", () => {
-          reject()
-        })
-
-        cp.on("exit", function(code) {
-          if (code !== 0) {
-            reject()
-          } else {
-            resolve()
-          }
-        })
-      })
+    for (const dirName of this.pkgInfo.order) {
+      await this.build(dirName)
     }
-
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-      const name = path.basename(dirName)
-
-      if (pkg.content.scripts && pkg.content.scripts.deploy) {
-        this.log.info2(`Deploying '${name}'...`)
-        internalExec("npm run deploy", {
-          cwd: dirName,
-        })
-      }
-    })
   }
 
-  releaseAll(pkgInfo) {
+  async deploy(dirName) {
+    const pkg = this.pkgInfo.pkgs.get(dirName)
+    const name = path.basename(dirName)
+
+    if (pkg.content.scripts && pkg.content.scripts.deploy) {
+      this.log.info2(`Deploying '${name}'...`)
+      await this.execWithOutput("npm run deploy", {
+        cwd: dirName,
+      })
+    }
+  }
+
+  async deployAll() {
+    this.ensureCommands(["npm"])
+
+    for (const dirName of this.pkgInfo.order) {
+      await this.deploy(dirName)
+    }
+  }
+
+  async release(dirName) {
+    const name = path.basename(dirName)
+
+    this.log.info2(`Releasing '${name}'...`)
+    this.log.info2("Checking for Uncommitted Changes...")
+    try {
+      await this.execWithOutput("git diff-index --quiet HEAD --")
+    } catch (error) {
+      throw new Error(
+        "There are uncomitted changes - commit or stash them and try again"
+      )
+    }
+
+    this.log.info2("Pulling...")
+    await this.execWithOutput("git pull")
+
+    this.log.info2("Updating Version...")
+    await ensureDir("scratch")
+
+    const incrFlag = this.args.patch
+      ? "-i patch"
+      : this.args.minor
+        ? "-i minor"
+        : this.args.major
+          ? "-i major"
+          : ""
+
+    await this.execWithOutput(`npx stampver ${incrFlag} -u -s`)
+
+    const tagName = await readFile("scratch/version.tag.txt")
+    const tagDescription = await readFile("scratch/version.desc.txt")
+
+    try {
+      this.log.info2("Installing...")
+      await this.install(dirName)
+      this.log.info2("Building...")
+      await this.build(dirName)
+      this.log.info2("Testing...")
+      await this.test(dirName)
+
+      this.log.info2("Committing Version Changes...")
+      await this.execWithOutput("git add :/")
+
+      if (this.args.patch || this.args.minor || this.args.major) {
+        this.log.info2("Tagging...")
+        await this.execWithOutput(
+          `git tag -a ${tagName} -m '${tagDescription}'`
+        )
+      }
+
+      await this.execWithOutput(`git commit -m '${tagDescription}'`)
+    } catch (error) {
+      // Roll back version changes if anything went wrong
+      await this.execWithOutput("git checkout -- .")
+      return
+    }
+
+    this.log.info2("Pushing to Git...")
+    await this.execWithOutput("git push --follow-tags")
+
+    if (
+      this.args.npm &&
+      this.pkgInfo.pkgs.size >= 1 &&
+      !this.pkgInfo.rootPkg.content.private
+    ) {
+      this.log.info2("Publishing to NPM...")
+      await this.execWithOutput("npm publish")
+    } else if (!this.args.npm && this.args.deploy) {
+      await this.deploy(dirName)
+    }
+  }
+
+  async releaseAll() {
     this.ensureCommands(["stampver", "git", "npx", "npm"])
 
     if (!this.args.patch && !this.args.minor && !this.args.major) {
@@ -351,77 +449,8 @@ end tell
       return
     }
 
-    pkgInfo.order.forEach((dirName, index) => {
-      const pkg = pkgInfo.pkgs.get(dirName)
-      const name = path.basename(dirName)
-
-      this.log.info2(`Releasing '${name}'...`)
-
-      this.log.info2("Checking for Uncommitted Changes...")
-      try {
-        execSync("git diff-index --quiet HEAD --")
-      } catch (error) {
-        throw new Error(
-          "There are uncomitted changes - commit or stash them and try again"
-        )
-      }
-
-      this.log.info2("Pulling...")
-      execSync("git pull")
-
-      this.log.info2("Updating Version...")
-      ensureDirSync("scratch")
-
-      const incrFlag = this.args.patch
-        ? "-i patch"
-        : this.args.minor
-          ? "-i minor"
-          : this.args.major
-            ? "-i major"
-            : ""
-
-      execSync(`npx stampver ${incrFlag} -u -s`)
-      const tagName = readFileSync("scratch/version.tag.txt")
-      const tagDescription = readFileSync("scratch/version.desc.txt")
-
-      try {
-        this.log.info2("Installing...")
-        this.installAll(pkg)
-        this.log.info2("Building...")
-        this.buildAll(pkg)
-        this.log.info2("Testing...")
-        this.testAll(pkg)
-
-        this.log.info2("Committing Version Changes...")
-        execSync("git add :/")
-
-        if (this.args.patch || this.args.minor || this.args.major) {
-          this.log.info2("Tagging...")
-          execSync(`git tag -a ${tagName} -m '${tagDescription}'`)
-        }
-
-        execSync(`git commit -m '${tagDescription}'`)
-      } catch (error) {
-        // Roll back version changes if anything went wrong
-        execSync("git checkout -- .")
-        return
-      }
-
-      this.log.info2("Pushing to Git...")
-      execSync("git push --follow-tags")
-
-      if (
-        this.args.npm &&
-        pkgInfo.pkgs.size >= 1 &&
-        !pkgInfo.rootPkg.content.private
-      ) {
-        this.log.info2("Publishing to NPM...")
-        execSync("npm publish")
-      }
-    })
-
-    if (!this.args.npm && this.args.deploy) {
-      this.deployAll(pkgInfo)
+    for (const dirName of this.pkgInfo.order) {
+      await this.release(dirName)
     }
   }
 
@@ -451,7 +480,8 @@ end tell
       return 0
     }
 
-    const pkgInfo = this.getPackageInfo()
+    this.pkgInfo = await this.getPackageInfo()
+
     let command = this.args._[0]
 
     command = command ? command.toLowerCase() : "help"
@@ -471,7 +501,7 @@ Options:
 `)
           return 0
         }
-        this.startAll(pkgInfo)
+        await this.startAll()
         break
 
       case "build":
@@ -484,11 +514,11 @@ Recursively runs 'npm run build' in all directories containing 'package.json' ex
 
 Options:
   --install       Recursively runs 'npm install' before building
-  --clean         If '--install' is specified, does a 'clean' first
+  --clean         If '--install' is specified, does a '--clean' first
 `)
           return 0
         }
-        this.buildAll(pkgInfo)
+        await this.buildAll()
         break
 
       case "deploy":
@@ -498,14 +528,10 @@ Options:
 Description:
 
 Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
-
-Options:
-  --ansible     Colorize Ansible output if detected
-
 `)
           return 0
         }
-        this.deployAll(pkgInfo)
+        await this.deployAll()
         break
 
       case "test":
@@ -518,7 +544,7 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
 `)
           return 0
         }
-        this.testAll(pkgInfo)
+        await this.testAll()
         break
 
       case "release":
@@ -539,7 +565,7 @@ Options:
 `)
           return 0
         }
-        this.releaseAll(pkgInfo)
+        await this.releaseAll()
         break
 
       case "clean":
@@ -552,7 +578,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 `)
           return 0
         }
-        this.cleanAll(pkgInfo)
+        await this.cleanAll()
         break
 
       case "install":
@@ -565,7 +591,7 @@ Recursively runs 'npm install' in all directories containing 'package.json' exce
 `)
           return 0
         }
-        this.installAll(pkgInfo)
+        await this.installAll()
         break
 
       case "update":
@@ -574,12 +600,12 @@ Recursively runs 'npm install' in all directories containing 'package.json' exce
 
 Description:
 
-Recursively runs 'npm update' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm update <pkg>,...' in all directories containing 'package.json' except 'node_modules/**'.
 `)
           return 0
         }
         this.args.packages = this.args._.slice(1)
-        this.updateAll(pkgInfo)
+        await this.updateAll()
         break
 
       case "help":
@@ -589,7 +615,9 @@ Usage: ${this.toolName} <cmd> [options]
 
 Description:
 
-By default, operates on all packages from the current directory recursively.
+Current directory must contain a package.json, which can be a dummy file.
+Operates on all sub-directories containing a package.json excluding
+node_modules directories.
 
 Commands:
   start       Run 'npm start' in new terminal tabs.
@@ -597,16 +625,16 @@ Commands:
   build       Run 'npm run build'
   deploy      Run 'npm run deploy'
   test        Run 'npm test'
-  update      Run 'npm update <pkg>...'
+  update      Run 'npm update'
   install     Run 'npm install'
   clean       Remove 'node_modules' and distribution files
   release     Increment version, build, test, tag and release
 
 Global Options:
-  --help                        Shows this help
-  --version                     Shows the tool version
-  --debug                       Enable debugging output
-  --no-recurse                  Don't recursive up the directory tree
+  --help      Shows this help
+  --version   Shows the tool version
+  --debug     Enable debugging output
+  --ansible   Colorize Ansible output if detected
 `)
         return 0
     }

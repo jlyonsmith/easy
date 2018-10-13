@@ -28,7 +28,7 @@ const log = {
   },
 }
 
-const debug = argv.includes("--debug")
+const debug = process.argv.includes("--debug")
 const tool = new SnapTool(path.basename(process.argv[1], ".js"), log)
 
 tool
@@ -38,9 +38,11 @@ tool
   })
   .catch((error) => {
     process.exitCode = 200
-    log.error(error.message)
 
-    if (debug) {
-      console.error(error)
+    if (error) {
+      log.error(error.message)
+      if (debug) {
+        console.error(error)
+      }
     }
   })
