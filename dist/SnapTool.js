@@ -347,7 +347,7 @@ end tell
 
     const name = _path.default.basename(dirName);
 
-    if (pkg.content.scripts && pkg.content.scripts.deploy && !pkg.content.private) {
+    if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`);
       await this.execWithOutput("npm run deploy", {
         cwd: dirName
