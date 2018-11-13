@@ -351,11 +351,7 @@ end tell
     const pkg = this.pkgInfo.pkgs.get(dirName)
     const name = path.basename(dirName)
 
-    if (
-      pkg.content.scripts &&
-      pkg.content.scripts.deploy &&
-      !pkg.content.private
-    ) {
+    if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`)
       await this.execWithOutput("npm run deploy", {
         cwd: dirName,
