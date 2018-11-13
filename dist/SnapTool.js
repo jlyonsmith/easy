@@ -3,35 +3,25 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.SnapTool = undefined;
+exports.SnapTool = void 0;
 
 var _glob = require("glob");
 
-var _minimist = require("minimist");
-
-var _minimist2 = _interopRequireDefault(_minimist);
+var _minimist = _interopRequireDefault(require("minimist"));
 
 var _version = require("./version");
 
-var _toposort = require("toposort");
-
-var _toposort2 = _interopRequireDefault(_toposort);
+var _toposort = _interopRequireDefault(require("toposort"));
 
 var _fsExtra = require("fs-extra");
 
-var _path = require("path");
+var _path = _interopRequireDefault(require("path"));
 
-var _path2 = _interopRequireDefault(_path);
-
-var _process = require("process");
-
-var _process2 = _interopRequireDefault(_process);
+var _process = _interopRequireDefault(require("process"));
 
 var _child_process = require("child_process");
 
-var _tmp = require("tmp");
-
-var _tmp2 = _interopRequireDefault(_tmp);
+var _tmp = _interopRequireDefault(require("tmp"));
 
 var _commandExists = require("command-exists");
 
@@ -45,7 +35,6 @@ class SnapTool {
 
   ensureCommands(cmds) {
     this.cmds = this.cmds || new Set();
-
     cmds.forEach(cmd => {
       if (!this.cmds.has(cmd) && !(0, _commandExists.sync)(cmd)) {
         throw new Error(`Command '${cmd}' does not exist.  Please install it.`);
@@ -64,7 +53,7 @@ class SnapTool {
       ignore: ["**/node_modules/**", "**/scratch/**"],
       realpath: true
     });
-    const dirNames = filenames.map(filename => _path2.default.dirname(filename));
+    const dirNames = filenames.map(filename => _path.default.dirname(filename));
     const pkgMap = new Map(dirNames.map(dirName => [dirName, {}]));
     let edges = [];
     let rootPkg = null;
@@ -75,7 +64,9 @@ class SnapTool {
       let content = null;
 
       try {
-        content = JSON.parse((await (0, _fsExtra.readFile)(packageFilename, { encoding: "utf8" })));
+        content = JSON.parse((await (0, _fsExtra.readFile)(packageFilename, {
+          encoding: "utf8"
+        })));
       } catch (error) {
         this.log.error(`Reading ${packageFilename}`);
         throw error;
@@ -83,14 +74,13 @@ class SnapTool {
 
       pkg.content = content;
 
-      if (dirName === _process2.default.cwd()) {
+      if (dirName === _process.default.cwd()) {
         rootPkg = pkg;
       } else if (content.dependencies) {
         const prefix = "file:";
-
         Object.entries(content.dependencies).forEach(arr => {
           if (arr[1].startsWith(prefix)) {
-            const otherdirName = _path2.default.resolve(_path2.default.join(dirName, arr[1].substring(prefix.length)));
+            const otherdirName = _path.default.resolve(_path.default.join(dirName, arr[1].substring(prefix.length)));
 
             if (pkgMap.has(otherdirName)) {
               edges.push([dirName, otherdirName]);
@@ -102,7 +92,7 @@ class SnapTool {
 
     return {
       pkgs: pkgMap,
-      order: _toposort2.default.array(dirNames, edges).reverse(),
+      order: _toposort.default.array(dirNames, edges).reverse(),
       rootPkg
     };
   }
@@ -111,7 +101,6 @@ class SnapTool {
     return new Promise((resolve, reject) => {
       const cp = (0, _child_process.exec)(command, options);
       const re = new RegExp(/\n$/);
-
       cp.stdout.on("data", data => {
         const s = data.toString().replace(re, "");
 
@@ -131,7 +120,6 @@ class SnapTool {
           this.log.info(s);
         }
       });
-
       cp.stderr.on("data", data => {
         const s = data.toString().replace(re, "");
 
@@ -139,11 +127,9 @@ class SnapTool {
           this.log.info(s);
         }
       });
-
       cp.on("error", () => {
         reject();
       });
-
       cp.on("exit", function (code) {
         if (code !== 0) {
           reject();
@@ -157,10 +143,11 @@ class SnapTool {
   async startAll() {
     this.ensureCommands(["osascript"]);
 
-    const tmpObjMain = _tmp2.default.fileSync();
-    const tmpObjHelper = _tmp2.default.fileSync();
-    const preferActors = !!this.args.actors;
+    const tmpObjMain = _tmp.default.fileSync();
 
+    const tmpObjHelper = _tmp.default.fileSync();
+
+    const preferActors = !!this.args.actors;
     await (0, _fsExtra.writeFile)(tmpObjHelper.name, `# function for setting iTerm2 titles
 function title {
   printf "\\x1b]0;%s\\x7" "$1"
@@ -173,14 +160,12 @@ function tab-color {
   printf "\\x1b]6;1;bg;blue;brightness;%s\\x7" "$3"
 }
 `);
-
     let script = `
 tell application "iTerm"
   tell (create window with default profile)
     `;
-    let firstTab = true;
+    let firstTab = true; // Loop through package.json dirs
 
-    // Loop through package.json dirs
     for (const dirName of this.pkgInfo.order) {
       const pkg = this.pkgInfo.pkgs.get(dirName);
 
@@ -208,10 +193,9 @@ tell application "iTerm"
         }
 
         const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes("library") || pkg.content.keywords.hasOwnProperty("library"));
-
         tabDetails = [{
           name: "start",
-          title: _path2.default.basename(dirName),
+          title: _path.default.basename(dirName),
           color: isLibrary ? "0 255 0" : "0 198 255"
         }];
       }
@@ -236,11 +220,11 @@ tell application "iTerm"
         }
       });
     }
+
     script += `
   end tell
 end tell
 `;
-
     await (0, _fsExtra.writeFile)(tmpObjMain.name, script);
 
     if (this.args.debug) {
@@ -256,8 +240,10 @@ end tell
     const pkg = this.pkgInfo.pkgs.get(dirName);
 
     if (pkg.content.scripts && pkg.content.scripts.test) {
-      this.log.info2(`Testing '${_path2.default.basename(dirName)}'...`);
-      await this.execWithOutput(`npm test`, { cwd: dirName });
+      this.log.info2(`Testing '${_path.default.basename(dirName)}'...`);
+      await this.execWithOutput(`npm test`, {
+        cwd: dirName
+      });
     }
   }
 
@@ -270,13 +256,13 @@ end tell
   }
 
   async clean(dirName) {
-    const name = _path2.default.basename(dirName);
+    const name = _path.default.basename(dirName);
 
     this.log.info2(`Cleaning '${name}'...`);
-    await (0, _fsExtra.remove)(_path2.default.join(dirName, "node_modules"));
-    await (0, _fsExtra.remove)(_path2.default.join(dirName, "package-lock.json"));
-    await (0, _fsExtra.remove)(_path2.default.join(dirName, "dist"));
-    await (0, _fsExtra.remove)(_path2.default.join(dirName, "build"));
+    await (0, _fsExtra.remove)(_path.default.join(dirName, "node_modules"));
+    await (0, _fsExtra.remove)(_path.default.join(dirName, "package-lock.json"));
+    await (0, _fsExtra.remove)(_path.default.join(dirName, "dist"));
+    await (0, _fsExtra.remove)(_path.default.join(dirName, "build"));
   }
 
   async cleanAll() {
@@ -288,14 +274,16 @@ end tell
   }
 
   async install(dirName) {
-    const name = _path2.default.basename(dirName);
+    const name = _path.default.basename(dirName);
 
     if (this.args.clean) {
       await this.clean(dirName);
     }
 
     this.log.info2(`Installing modules in '${name}'...`);
-    await this.execWithOutput(`npm install`, { cwd: dirName });
+    await this.execWithOutput(`npm install`, {
+      cwd: dirName
+    });
   }
 
   async installAll() {
@@ -308,12 +296,15 @@ end tell
 
   async update(dirName) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
-    const name = _path2.default.basename(dirName);
+
+    const name = _path.default.basename(dirName);
 
     for (const pkgName of this.args.packages) {
       if (pkg.content.dependencies && pkg.content.dependencies[pkgName] || pkg.content.devDependencies && pkg.content.devDependencies[pkgName]) {
         this.log.info2(`Update '${pkgName}' in '${name}'...`);
-        await this.execWithOutput(`npm update ${pkgName}`, { cwd: dirName });
+        await this.execWithOutput(`npm update ${pkgName}`, {
+          cwd: dirName
+        });
       }
     }
   }
@@ -328,7 +319,8 @@ end tell
 
   async build(dirName) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
-    const name = _path2.default.basename(dirName);
+
+    const name = _path.default.basename(dirName);
 
     if (this.args.install) {
       await this.install(dirName);
@@ -336,7 +328,9 @@ end tell
 
     if (pkg.content.scripts && pkg.content.scripts.build) {
       this.log.info2(`Building '${name}'...`);
-      await this.execWithOutput("npm run build", { cwd: dirName });
+      await this.execWithOutput("npm run build", {
+        cwd: dirName
+      });
     }
   }
 
@@ -350,9 +344,10 @@ end tell
 
   async deploy(dirName) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
-    const name = _path2.default.basename(dirName);
 
-    if (pkg.content.scripts && pkg.content.scripts.deploy) {
+    const name = _path.default.basename(dirName);
+
+    if (pkg.content.scripts && pkg.content.scripts.deploy && !pkg.content.private) {
       this.log.info2(`Deploying '${name}'...`);
       await this.execWithOutput("npm run deploy", {
         cwd: dirName
@@ -369,10 +364,11 @@ end tell
   }
 
   async release(dirName) {
-    const name = _path2.default.basename(dirName);
+    const name = _path.default.basename(dirName);
 
     this.log.info2(`Releasing '${name}'...`);
     this.log.info2("Checking for Uncommitted Changes...");
+
     try {
       await this.execWithOutput("git diff-index --quiet HEAD --");
     } catch (error) {
@@ -381,14 +377,10 @@ end tell
 
     this.log.info2("Pulling...");
     await this.execWithOutput("git pull");
-
     this.log.info2("Updating Version...");
     await (0, _fsExtra.ensureDir)("scratch");
-
     const incrFlag = this.args.patch ? "-i patch" : this.args.minor ? "-i minor" : this.args.major ? "-i major" : "";
-
     await this.execWithOutput(`npx stampver ${incrFlag} -u -s`);
-
     const tagName = await (0, _fsExtra.readFile)("scratch/version.tag.txt");
     const tagDescription = await (0, _fsExtra.readFile)("scratch/version.desc.txt");
 
@@ -399,7 +391,6 @@ end tell
       await this.build(dirName);
       this.log.info2("Testing...");
       await this.test(dirName);
-
       this.log.info2("Committing Version Changes...");
       await this.execWithOutput("git add :/");
 
@@ -418,10 +409,7 @@ end tell
     this.log.info2("Pushing to Git...");
     await this.execWithOutput("git push --follow-tags");
 
-    if (this.args.npm && this.pkgInfo.pkgs.size >= 1 && !this.pkgInfo.rootPkg.content.private) {
-      this.log.info2("Publishing to NPM...");
-      await this.execWithOutput("npm publish");
-    } else if (!this.args.npm && this.args.deploy) {
+    if (this.args.deploy) {
       await this.deploy(dirName);
     }
   }
@@ -441,12 +429,12 @@ end tell
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "npm", "debug", "ansible"],
+      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "debug", "ansible"],
       alias: {
         a: "actors"
       }
     };
-    this.args = (0, _minimist2.default)(argv, options);
+    this.args = (0, _minimist.default)(argv, options);
 
     if (this.args.version) {
       this.log.info(`${_version.fullVersion}`);
@@ -454,9 +442,7 @@ end tell
     }
 
     this.pkgInfo = await this.getPackageInfo();
-
     let command = this.args._[0];
-
     command = command ? command.toLowerCase() : "help";
 
     switch (command) {
@@ -474,6 +460,7 @@ Options:
 `);
           return 0;
         }
+
         await this.startAll();
         break;
 
@@ -491,6 +478,7 @@ Options:
 `);
           return 0;
         }
+
         await this.buildAll();
         break;
 
@@ -504,6 +492,7 @@ Recursively runs 'npm run deploy' in all directories containing 'package.json' e
 `);
           return 0;
         }
+
         await this.deployAll();
         break;
 
@@ -517,6 +506,7 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
 `);
           return 0;
         }
+
         await this.testAll();
         break;
 
@@ -533,11 +523,11 @@ Options:
   --major       Release major version
   --minor       Release minor version
   --patch       Release a patch
-  --npm         Push a non-private build to NPM (http://npmjs.org)
-  --deploy      Run a deployment after a success release. Cannot be used with --npm.
+  --deploy      Run a deployment after a success release
 `);
           return 0;
         }
+
         await this.releaseAll();
         break;
 
@@ -551,6 +541,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 `);
           return 0;
         }
+
         await this.cleanAll();
         break;
 
@@ -564,6 +555,7 @@ Recursively runs 'npm install' in all directories containing 'package.json' exce
 `);
           return 0;
         }
+
         await this.installAll();
         break;
 
@@ -577,6 +569,7 @@ Recursively runs 'npm update <pkg>,...' in all directories containing 'package.j
 `);
           return 0;
         }
+
         this.args.packages = this.args._.slice(1);
         await this.updateAll();
         break;
@@ -614,6 +607,8 @@ Global Options:
 
     return 0;
   }
+
 }
+
 exports.SnapTool = SnapTool;
 //# sourceMappingURL=SnapTool.js.map

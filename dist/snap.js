@@ -3,44 +3,38 @@
 
 var _SnapTool = require("./SnapTool");
 
-var _chalk = require("chalk");
+var _chalk = _interopRequireDefault(require("chalk"));
 
-var _chalk2 = _interopRequireDefault(_chalk);
-
-var _path = require("path");
-
-var _path2 = _interopRequireDefault(_path);
+var _path = _interopRequireDefault(require("path"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const log = {
   info: console.error,
   info2: function () {
-    console.error(_chalk2.default.green([...arguments].join(" ")));
+    console.error(_chalk.default.green([...arguments].join(" ")));
   },
   error: function () {
-    console.error(_chalk2.default.red("error:", [...arguments].join(" ")));
+    console.error(_chalk.default.red("error:", [...arguments].join(" ")));
   },
   warning: function () {
-    console.error(_chalk2.default.yellow("warning:", [...arguments].join(" ")));
+    console.error(_chalk.default.yellow("warning:", [...arguments].join(" ")));
   },
   ansibleOK: function () {
-    console.error(_chalk2.default.green([...arguments].join(" ")));
+    console.error(_chalk.default.green([...arguments].join(" ")));
   },
   ansibleChanged: function () {
-    console.error(_chalk2.default.yellow([...arguments].join(" ")));
+    console.error(_chalk.default.yellow([...arguments].join(" ")));
   },
   ansibleSkipping: function () {
-    console.error(_chalk2.default.cyan([...arguments].join(" ")));
+    console.error(_chalk.default.cyan([...arguments].join(" ")));
   },
   ansibleError: function () {
-    console.error(_chalk2.default.red([...arguments].join(" ")));
+    console.error(_chalk.default.red([...arguments].join(" ")));
   }
 };
-
 const debug = process.argv.includes("--debug");
-const tool = new _SnapTool.SnapTool(_path2.default.basename(process.argv[1], ".js"), log);
-
+const tool = new _SnapTool.SnapTool(_path.default.basename(process.argv[1], ".js"), log);
 tool.run(process.argv.slice(2)).then(exitCode => {
   process.exitCode = exitCode;
 }).catch(error => {
@@ -48,6 +42,7 @@ tool.run(process.argv.slice(2)).then(exitCode => {
 
   if (error) {
     log.error(error.message);
+
     if (debug) {
       console.error(error);
     }
