@@ -1,9 +1,10 @@
 {
   "presets": [
-    [ "env", { "targets": { "node": 8 } } ]
+    ["@babel/preset-env", { "targets": { "node": 8, "chrome": 60 } }]
   ],
   "plugins": [
-    "transform-class-properties",
-    "transform-object-rest-spread"
+    "@babel/plugin-proposal-class-properties",
+    "@babel/plugin-syntax-object-rest-spread",
+    "@babel/plugin-proposal-optional-chaining"
   ]
 }

@@ -351,7 +351,11 @@ end tell
     const pkg = this.pkgInfo.pkgs.get(dirName)
     const name = path.basename(dirName)
 
-    if (pkg.content.scripts && pkg.content.scripts.deploy) {
+    if (
+      pkg.content.scripts &&
+      pkg.content.scripts.deploy &&
+      !pkg.content.private
+    ) {
       this.log.info2(`Deploying '${name}'...`)
       await this.execWithOutput("npm run deploy", {
         cwd: dirName,
@@ -389,10 +393,10 @@ end tell
     const incrFlag = this.args.patch
       ? "-i patch"
       : this.args.minor
-        ? "-i minor"
-        : this.args.major
-          ? "-i major"
-          : ""
+      ? "-i minor"
+      : this.args.major
+      ? "-i major"
+      : ""
 
     await this.execWithOutput(`npx stampver ${incrFlag} -u -s`)
 
@@ -427,14 +431,7 @@ end tell
     this.log.info2("Pushing to Git...")
     await this.execWithOutput("git push --follow-tags")
 
-    if (
-      this.args.npm &&
-      this.pkgInfo.pkgs.size >= 1 &&
-      !this.pkgInfo.rootPkg.content.private
-    ) {
-      this.log.info2("Publishing to NPM...")
-      await this.execWithOutput("npm publish")
-    } else if (!this.args.npm && this.args.deploy) {
+    if (this.args.deploy) {
       await this.deploy(dirName)
     }
   }
@@ -465,7 +462,6 @@ end tell
         "clean",
         "install",
         "actors",
-        "npm",
         "debug",
         "ansible",
       ],
@@ -560,8 +556,7 @@ Options:
   --major       Release major version
   --minor       Release minor version
   --patch       Release a patch
-  --npm         Push a non-private build to NPM (http://npmjs.org)
-  --deploy      Run a deployment after a success release. Cannot be used with --npm.
+  --deploy      Run a deployment after a success release
 `)
           return 0
         }

@@ -9,10 +9,11 @@
     "dist/**"
   ],
   "scripts": {
-    "build": "babel src -d dist -s --ignore *.test.js",
+    "build": "babel src -d dist -s --ignore **/*.test.js",
     "debug:snap": "babel-node --inspect-brk src/snap.js",
     "test": "jest",
-    "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand"
+    "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
+    "deploy": "npm publish"
   },
   "jest": {
     "testPathIgnorePatterns": [
@@ -39,14 +40,19 @@
   },
   "homepage": "https://github.com/jlyonsmith/snap-tool#readme",
   "devDependencies": {
-    "babel-cli": "^6.24.1",
-    "babel-core": "^6.26.3",
+    "@babel/cli": "^7.1.5",
+    "@babel/core": "^7.1.5",
+    "@babel/node": "^7.0.0",
+    "@babel/plugin-proposal-class-properties": "^7.1.0",
+    "@babel/plugin-syntax-object-rest-spread": "^7.0.0",
+    "@babel/preset-env": "^7.1.5",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-jest": "^23.6.0",
     "babel-plugin-transform-class-properties": "^6.24.1",
-    "babel-plugin-transform-object-rest-spread": "^6.23.0",
-    "babel-preset-env": "^1.7.0",
-    "jest": "^21.2.1"
+    "jest-cli": "^23.6.0"
   },
   "dependencies": {
+    "@babel/plugin-proposal-optional-chaining": "^7.0.0",
     "chalk": "^2.2.0",
     "command-exists": "^1.2.7",
     "fs-extra": "^4.0.2",
