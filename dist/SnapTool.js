@@ -28,9 +28,11 @@ var _commandExists = require("command-exists");
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 class SnapTool {
-  constructor(toolName, log) {
+  constructor(toolName, log, options) {
+    options = options || {};
     this.toolName = toolName;
     this.log = log;
+    this.debug = options.debug;
   }
 
   ensureCommands(cmds) {
@@ -97,14 +99,14 @@ class SnapTool {
     };
   }
 
-  execWithOutput(command, options) {
+  execWithOutput(command, options = {}) {
     return new Promise((resolve, reject) => {
       const cp = (0, _child_process.exec)(command, options);
       const re = new RegExp(/\n$/);
       cp.stdout.on("data", data => {
         const s = data.toString().replace(re, "");
 
-        if (this.args.ansible) {
+        if (options.ansible) {
           if (s.startsWith("ok: ")) {
             this.log.ansibleOK(s);
           } else if (s.startsWith("changed: ")) {
@@ -140,14 +142,14 @@ class SnapTool {
     });
   }
 
-  async startAll() {
+  async startAll(options) {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["osascript"]);
 
     const tmpObjMain = _tmp.default.fileSync();
 
     const tmpObjHelper = _tmp.default.fileSync();
 
-    const preferActors = !!this.args.actors;
     await (0, _fsExtra.writeFile)(tmpObjHelper.name, `# function for setting iTerm2 titles
 function title {
   printf "\\x1b]0;%s\\x7" "$1"
@@ -175,7 +177,7 @@ tell application "iTerm"
 
       let tabDetails = [];
 
-      if (preferActors) {
+      if (options.preferActors) {
         const actorNames = Object.getOwnPropertyNames(pkg.content.scripts).filter(s => s.startsWith("actor:") && !s.endsWith(":debug"));
 
         if (actorNames.length > 0) {
@@ -227,7 +229,7 @@ end tell
 `;
     await (0, _fsExtra.writeFile)(tmpObjMain.name, script);
 
-    if (this.args.debug) {
+    if (this.debug) {
       this.log.info(script);
     }
 
@@ -236,7 +238,7 @@ end tell
     });
   }
 
-  async test(dirName) {
+  async _test(dirName) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
 
     if (pkg.content.scripts && pkg.content.scripts.test) {
@@ -248,14 +250,15 @@ end tell
   }
 
   async testAll() {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
     for (const dirName of this.pkgInfo.order) {
-      await this.test(dirName);
+      await this._test(dirName);
     }
   }
 
-  async clean(dirName) {
+  async _clean(dirName) {
     const name = _path.default.basename(dirName);
 
     this.log.info2(`Cleaning '${name}'...`);
@@ -266,18 +269,19 @@ end tell
   }
 
   async cleanAll() {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
     for (const dirName of this.pkgInfo.order) {
-      await this.clean(dirName);
+      await this._clean(dirName);
     }
   }
 
-  async install(dirName) {
+  async _install(dirName, options = {}) {
     const name = _path.default.basename(dirName);
 
-    if (this.args.clean) {
-      await this.clean(dirName);
+    if (options.clean) {
+      await this._clean(dirName);
     }
 
     this.log.info2(`Installing modules in '${name}'...`);
@@ -286,44 +290,22 @@ end tell
     });
   }
 
-  async installAll() {
+  async installAll(options) {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
     for (const dirName of this.pkgInfo.order) {
-      await this.install(dirName);
+      await this._install(dirName, options);
     }
   }
 
-  async update(dirName) {
+  async _build(dirName, options = {}) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
 
     const name = _path.default.basename(dirName);
 
-    for (const pkgName of this.args.packages) {
-      if (pkg.content.dependencies && pkg.content.dependencies[pkgName] || pkg.content.devDependencies && pkg.content.devDependencies[pkgName]) {
-        this.log.info2(`Update '${pkgName}' in '${name}'...`);
-        await this.execWithOutput(`npm update ${pkgName}`, {
-          cwd: dirName
-        });
-      }
-    }
-  }
-
-  async updateAll() {
-    this.ensureCommands(["npm"]);
-
-    for (const dirName of this.pkgInfo.order) {
-      await this.update(dirName);
-    }
-  }
-
-  async build(dirName) {
-    const pkg = this.pkgInfo.pkgs.get(dirName);
-
-    const name = _path.default.basename(dirName);
-
-    if (this.args.install) {
-      await this.install(dirName);
+    if (options.install) {
+      await this._install(dirName);
     }
 
     if (pkg.content.scripts && pkg.content.scripts.build) {
@@ -334,15 +316,16 @@ end tell
     }
   }
 
-  async buildAll() {
+  async buildAll(options) {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
     for (const dirName of this.pkgInfo.order) {
-      await this.build(dirName);
+      await this._build(dirName, options);
     }
   }
 
-  async deploy(dirName) {
+  async _deploy(dirName) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
 
     const name = _path.default.basename(dirName);
@@ -350,23 +333,29 @@ end tell
     if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`);
       await this.execWithOutput("npm run deploy", {
-        cwd: dirName
+        cwd: dirName,
+        ansible: true
       });
     }
   }
 
-  async deployAll() {
+  async deployAll(dirName) {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
     for (const dirName of this.pkgInfo.order) {
-      await this.deploy(dirName);
+      await this._deploy(dirName);
     }
   }
 
-  async release(dirName) {
+  async _release(dirName, options = {}) {
+    if (options.version !== "major" && options.version !== "minor" && options.version !== "patch") {
+      throw new Error(`Major, minor or patch number must be incremented for release`);
+    }
+
     const name = _path.default.basename(dirName);
 
-    this.log.info2(`Releasing '${name}'...`);
+    this.log.info2(`Starting release of '${name}'...`);
     this.log.info2("Checking for Uncommitted Changes...");
 
     try {
@@ -379,75 +368,77 @@ end tell
     await this.execWithOutput("git pull");
     this.log.info2("Updating Version...");
     await (0, _fsExtra.ensureDir)("scratch");
-    const incrFlag = this.args.patch ? "-i patch" : this.args.minor ? "-i minor" : this.args.major ? "-i major" : "";
+    const incrFlag = options.version === "patch" ? "-i patch" : options.version === "minor" ? "-i minor" : "-i major";
     await this.execWithOutput(`npx stampver ${incrFlag} -u -s`);
     const tagName = await (0, _fsExtra.readFile)("scratch/version.tag.txt");
     const tagDescription = await (0, _fsExtra.readFile)("scratch/version.desc.txt");
 
     try {
-      this.log.info2("Installing...");
-      await this.install(dirName);
-      this.log.info2("Building...");
-      await this.build(dirName);
-      this.log.info2("Testing...");
-      await this.test(dirName);
-      this.log.info2("Committing Version Changes...");
-      await this.execWithOutput("git add :/");
-
-      if (this.args.patch || this.args.minor || this.args.major) {
-        this.log.info2("Tagging...");
-        await this.execWithOutput(`git tag -a ${tagName} -m '${tagDescription}'`);
+      if (options.clean) {
+        this.log.info2("Cleaning...");
+        await this._clean(dirName);
       }
 
-      await this.execWithOutput(`git commit -m '${tagDescription}'`);
+      await this._install(dirName);
+      await this._build(dirName);
+      await this._test(dirName);
     } catch (error) {
-      // Roll back version changes if anything went wrong
+      // Roll back changes if anything went wrong
       await this.execWithOutput("git checkout -- .");
       return;
     }
 
+    this.log.info2("Staging version changes...");
+    await this.execWithOutput("git add :/");
+    this.log.info("Committing version changes...");
+    await this.execWithOutput(`git commit -m '${tagDescription}'`);
+    this.log.info2("Tagging...");
+    await this.execWithOutput(`git tag -a ${tagName} -m '${tagDescription}'`);
     this.log.info2("Pushing to Git...");
     await this.execWithOutput("git push --follow-tags");
 
-    if (this.args.deploy) {
-      await this.deploy(dirName);
+    if (options.deploy) {
+      await this._deploy(dirName);
     }
+
+    this.log.info(`Finished release of '${name}'.`);
   }
 
-  async releaseAll() {
+  async releaseAll(options) {
+    this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["stampver", "git", "npx", "npm"]);
 
-    if (!this.args.patch && !this.args.minor && !this.args.major) {
-      this.log.warning(`Major, minor or patch number must be incremented for release`);
-      return;
-    }
-
     for (const dirName of this.pkgInfo.order) {
-      await this.release(dirName);
+      await this._release(dirName, options);
     }
   }
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "patch", "minor", "major", "clean", "install", "actors", "debug", "ansible"],
+      boolean: ["help", "version", "clean", "install", "actors", "debug"],
       alias: {
         a: "actors"
       }
     };
-    this.args = (0, _minimist.default)(argv, options);
+    const args = (0, _minimist.default)(argv, options);
+    this.debug = args.debug;
 
-    if (this.args.version) {
+    if (args.version) {
       this.log.info(`${_version.fullVersion}`);
       return 0;
     }
 
-    this.pkgInfo = await this.getPackageInfo();
-    let command = this.args._[0];
-    command = command ? command.toLowerCase() : "help";
+    let command = "help";
+
+    if (args._.length > 0) {
+      command = args._[0].toLowerCase();
+
+      args._.shift();
+    }
 
     switch (command) {
       case "start":
-        if (this.args.help) {
+        if (args.help) {
           this.log.info(`Usage: ${this.toolName} start [options]
 
 Description:
@@ -461,78 +452,13 @@ Options:
           return 0;
         }
 
-        await this.startAll();
-        break;
-
-      case "build":
-        if (this.args.help) {
-          this.log.info(`Usage: ${this.toolName} build
-
-Description:
-
-Recursively runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
-
-Options:
-  --install       Recursively runs 'npm install' before building
-  --clean         If '--install' is specified, does a '--clean' first
-`);
-          return 0;
-        }
-
-        await this.buildAll();
-        break;
-
-      case "deploy":
-        if (this.args.help) {
-          this.log.info(`Usage: ${this.toolName} deploy
-
-Description:
-
-Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
-`);
-          return 0;
-        }
-
-        await this.deployAll();
-        break;
-
-      case "test":
-        if (this.args.help) {
-          this.log.info(`Usage: ${this.toolName} test
-
-Description:
-
-Recursively runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
-`);
-          return 0;
-        }
-
-        await this.testAll();
-        break;
-
-      case "release":
-        if (this.args.help) {
-          this.log.info(`Usage: ${this.toolName} release [options]
-
-Description:
-
-Increment version information with 'stampver', runs 'snap build', 'snap test',
-tags local Git repo, pushes changes then optionally releases to NPM.
-
-Options:
-  --major       Release major version
-  --minor       Release minor version
-  --patch       Release a patch
-  --deploy      Run a deployment after a success release
-`);
-          return 0;
-        }
-
-        await this.releaseAll();
+        await this.startAll({
+          preferActors: !!args.actors
+        });
         break;
 
       case "clean":
-        if (this.args.help) {
+        if (args.help) {
           this.log.info(`Usage: ${this.toolName} clean
 
 Description:
@@ -546,32 +472,95 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
         break;
 
       case "install":
-        if (this.args.help) {
+        if (args.help) {
           this.log.info(`Usage: ${this.toolName} install
 
 Description:
 
 Recursively runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
-`);
+
+Options:
+  --clean         Runs a clean before installing
+  `);
           return 0;
         }
 
-        await this.installAll();
+        await this.installAll({
+          clean: !!args.clean
+        });
         break;
 
-      case "update":
-        if (this.args.help) {
-          this.log.info(`Usage: ${this.toolName} update
+      case "build":
+        if (args.help) {
+          this.log.info(`Usage: ${this.toolName} build
 
 Description:
 
-Recursively runs 'npm update <pkg>,...' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+
+Options:
+  --install       Recursively runs 'npm install' before building
+  --clean         If '--install' is specified, does a '--clean' first
 `);
           return 0;
         }
 
-        this.args.packages = this.args._.slice(1);
-        await this.updateAll();
+        await this.buildAll({
+          clean: !!args.clean,
+          install: !!args.install
+        });
+        break;
+
+      case "test":
+        if (args.help) {
+          this.log.info(`Usage: ${this.toolName} test
+
+Description:
+
+Recursively runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
+`);
+          return 0;
+        }
+
+        await this.testAll();
+        break;
+
+      case "deploy":
+        if (args.help) {
+          this.log.info(`Usage: ${this.toolName} deploy
+
+Description:
+
+Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
+Will colorize Ansible output if detected.
+`);
+          return 0;
+        }
+
+        await this.deployAll(dirName);
+        break;
+
+      case "release":
+        if (args.help) {
+          this.log.info(`Usage: ${this.toolName} release [major|minor|patch] [options]
+
+Description:
+
+Increment version information with 'stampver', runs 'snap build', 'snap test',
+tags local Git repo, pushes changes then optionally runs an npm deploy.
+
+Options:
+  --deploy      Run a deployment after a success release
+  --clean       Clean before installing
+`);
+          return 0;
+        }
+
+        await this.releaseAll({
+          version: args._[0],
+          deploy: !!args.deploy,
+          clean: !!args.clean
+        });
         break;
 
       case "help":
@@ -591,7 +580,6 @@ Commands:
   build       Run 'npm run build'
   deploy      Run 'npm run deploy'
   test        Run 'npm test'
-  update      Run 'npm update'
   install     Run 'npm install'
   clean       Remove 'node_modules' and distribution files
   release     Increment version, build, test, tag and release
@@ -600,7 +588,6 @@ Global Options:
   --help      Shows this help
   --version   Shows the tool version
   --debug     Enable debugging output
-  --ansible   Colorize Ansible output if detected
 `);
         return 0;
     }

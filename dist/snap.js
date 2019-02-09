@@ -33,7 +33,6 @@ const log = {
     console.error(_chalk.default.red([...arguments].join(" ")));
   }
 };
-const debug = process.argv.includes("--debug");
 const tool = new _SnapTool.SnapTool(_path.default.basename(process.argv[1], ".js"), log);
 tool.run(process.argv.slice(2)).then(exitCode => {
   process.exitCode = exitCode;
@@ -43,7 +42,7 @@ tool.run(process.argv.slice(2)).then(exitCode => {
   if (error) {
     log.error(error.message);
 
-    if (debug) {
+    if (tool.debug) {
       console.error(error);
     }
   }
