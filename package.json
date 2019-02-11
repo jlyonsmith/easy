@@ -1,6 +1,6 @@
 {
   "name": "snap-tool",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A tool to make multi-package project management a snap!",
   "bin": {
     "snap": "dist/snap.js"

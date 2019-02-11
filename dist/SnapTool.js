@@ -339,7 +339,7 @@ end tell
     }
   }
 
-  async deployAll(dirName) {
+  async deployAll() {
     this.pkgInfo = await this.getPackageInfo();
     this.ensureCommands(["npm"]);
 
@@ -537,7 +537,7 @@ Will colorize Ansible output if detected.
           return 0;
         }
 
-        await this.deployAll(dirName);
+        await this.deployAll();
         break;
 
       case "release":
