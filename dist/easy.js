@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-var _SnapTool = require("./SnapTool");
+var _EasyTool = require("./EasyTool");
 
 var _chalk = _interopRequireDefault(require("chalk"));
 
@@ -33,7 +33,7 @@ const log = {
     console.error(_chalk.default.red([...arguments].join(" ")));
   }
 };
-const tool = new _SnapTool.SnapTool(_path.default.basename(process.argv[1], ".js"), log);
+const tool = new _EasyTool.EasyTool(_path.default.basename(process.argv[1], ".js"), log);
 tool.run(process.argv.slice(2)).then(exitCode => {
   process.exitCode = exitCode;
 }).catch(error => {
@@ -47,4 +47,4 @@ tool.run(process.argv.slice(2)).then(exitCode => {
     }
   }
 });
-//# sourceMappingURL=snap.js.map
+//# sourceMappingURL=easy.js.map

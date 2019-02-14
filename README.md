@@ -1,32 +1,32 @@
-# Snap: Node Build & Release Tool
+# Easy: Node Build & Release Tool
 
-A tool that makes building, testing, starting, deploying and releasing multi-package NodeJS projects a snap!
+A tool that makes building, testing, starting, deploying and releasing multi-package NodeJS projects **easy**!
 
-Snap is an opinionated tool for managing a NodeJS project tree. It assumes your development environment uses:
+`easy` is a tool for managing a NodeJS project tree. It assumes your development environment uses:
 
 - [npm](http://npmjs.org) as the [NodeJS](http://nodejs.org) package manager
 - [git](https://git-scm.com/) to manage your source code
 - If on macOS, [iTerm2](https://www.iterm2.com/) as a scriptable replacement for the macOS Terminal app
 - [stampver](https://www.npmjs.com/package/stampver) to manage your [semantic versioning](https://semver.org/)
-- Optionally, an actor model for sub-processes.
+- An `actor` naming convention for node sub-processes.
 
-If you don't use all of the above, then `snap-tool` is probably not going to be that helpful too you. Told you it was opinionated!
+If you don't use all of the above, then `easy` is probably not going to be that helpful too you. Told you it was opinionated!
 
-I am aware that this tool has the same name as the Linux `snap` tool. I don't use that, so it's not an issue for me.
+I am aware that this tool has the same name as the Linux `easy` tool. I don't use that, so it's not an issue for me.
 
 ## Installation
 
 Install the package globally or use `npx` to run the latest version:
 
 ```
-npm install -g snap-tool
-snap help
+npm install -g @johnls/easy
+easy help
 ```
 
 or:
 
 ```
-npx snap-tool help
+npx @johnls/easy help
 ```
 
 ## Build
@@ -34,7 +34,7 @@ npx snap-tool help
 To build all projects recursively use:
 
 ```
-snap build
+easy build
 ```
 
 You can also specify `--install` and `--clean` with this command.
@@ -44,7 +44,7 @@ You can also specify `--install` and `--clean` with this command.
 To install all `npm` packages recursively use:
 
 ```
-snap install
+easy install
 ```
 
 If you specify `--clean` it will perform the `clean` command before installation.
@@ -54,7 +54,7 @@ If you specify `--clean` it will perform the `clean` command before installation
 To recursively clean out all `node_modules`, `dist`, `build` and `package-lock.json` files use:
 
 ```
-snap clean
+easy clean
 ```
 
 ## Test
@@ -62,26 +62,26 @@ snap clean
 To run all tests recursively use:
 
 ```
-snap test
+easy test
 ```
 
 Each command will search recursively through your project tree looking for `package.json` files to process. They each ignore `node_modules` directories.
 
 ## Start
 
-It's common to have a NodeJS based product comprised of a website, a server and perhaps mobile apps. `snap` will run all the `start` scripts recursively with:
+It's common to have a NodeJS based product comprised of a website, a server and perhaps mobile apps. `easy` will run all the `start` scripts recursively with:
 
 ```
-snap start
+easy start
 ```
 
-Snap is also intended to be used with NodeJS servers consisting of multiple _actor_ services (or node sub-processes.) These actors processes have `script` names that start with `actor:`.
+Easy is also intended to be used with NodeJS servers consisting of multiple _actor_ services (or node sub-processes.) These actors processes have `script` names that start with `actor:`.
 
 ```
-snap start --actors
+easy start --actors
 ```
 
-If `snap` finds `actor:` entries, it will start each actor process using a new iTerm2 tab in the same window so that you can shut down your entire product with one click. For that `package.json` it will not run the `start` script. Very handy for local testing.
+If `easy` finds `actor:` entries, it will start each actor process using a new iTerm2 tab in the same window so that you can shut down your entire product with one click. For that `package.json` it will not run the `start` script. Very handy for local testing.
 
 ## Release
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { SnapTool } from "./SnapTool"
+import { EasyTool } from "./EasyTool"
 import chalk from "chalk"
 import path from "path"
 
@@ -28,7 +28,7 @@ const log = {
   },
 }
 
-const tool = new SnapTool(path.basename(process.argv[1], ".js"), log)
+const tool = new EasyTool(path.basename(process.argv[1], ".js"), log)
 
 tool
   .run(process.argv.slice(2))

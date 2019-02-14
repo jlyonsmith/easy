@@ -1,16 +1,16 @@
 {
-  "name": "snap-tool",
+  "name": "@johnls/easy",
   "version": "3.0.1",
-  "description": "A tool to make multi-package project management a snap!",
+  "description": "A tool to make multi-package project management a easy!",
   "bin": {
-    "snap": "dist/snap.js"
+    "easy": "dist/easy.js"
   },
   "files": [
     "dist/**"
   ],
   "scripts": {
     "build": "rm -rf dist/* && babel src -d dist -s --ignore **/*.test.js",
-    "debug:snap": "babel-node --inspect-brk src/snap.js",
+    "debug:easy": "babel-node --inspect-brk src/easy.js",
     "test": "jest",
     "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
     "deploy": "npm publish"
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jlyonsmith/snap-tool.git"
+    "url": "git+https://github.com/jlyonsmith/easy.git"
   },
   "keywords": [
     "package",
@@ -36,9 +36,9 @@
   "author": "John Lyon-Smith",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jlyonsmith/snap-tool/issues"
+    "url": "https://github.com/jlyonsmith/easy/issues"
   },
-  "homepage": "https://github.com/jlyonsmith/snap-tool#readme",
+  "homepage": "https://github.com/jlyonsmith/easy#readme",
   "devDependencies": {
     "@babel/cli": "^7.2.3",
     "@babel/core": "^7.2.2",

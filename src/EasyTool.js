@@ -9,7 +9,7 @@ import { exec } from "child_process"
 import tmp from "tmp"
 import { sync as commandExistsSync } from "command-exists"
 
-export class SnapTool {
+export class EasyTool {
   constructor(toolName, log, options) {
     options = options || {}
     this.toolName = toolName
@@ -553,7 +553,7 @@ Will colorize Ansible output if detected.
 
 Description:
 
-Increment version information with 'stampver', runs 'snap build', 'snap test',
+Increment version information with 'stampver', runs 'easy build', 'easy test',
 tags local Git repo, pushes changes then optionally runs an npm deploy.
 
 Options:

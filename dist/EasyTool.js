@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.SnapTool = void 0;
+exports.EasyTool = void 0;
 
 var _glob = require("glob");
 
@@ -27,7 +27,7 @@ var _commandExists = require("command-exists");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-class SnapTool {
+class EasyTool {
   constructor(toolName, log, options) {
     options = options || {};
     this.toolName = toolName;
@@ -546,7 +546,7 @@ Will colorize Ansible output if detected.
 
 Description:
 
-Increment version information with 'stampver', runs 'snap build', 'snap test',
+Increment version information with 'stampver', runs 'easy build', 'easy test',
 tags local Git repo, pushes changes then optionally runs an npm deploy.
 
 Options:
@@ -597,5 +597,5 @@ Global Options:
 
 }
 
-exports.SnapTool = SnapTool;
-//# sourceMappingURL=SnapTool.js.map
+exports.EasyTool = EasyTool;
+//# sourceMappingURL=EasyTool.js.map
