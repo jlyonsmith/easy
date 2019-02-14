@@ -1,5 +1,6 @@
 {
   "name": "@johnls/easy",
+  "private": false,
   "version": "4.0.0",
   "description": "A tool to make multi-package project management a easy!",
   "bin": {
