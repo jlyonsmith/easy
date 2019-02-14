@@ -1,6 +1,6 @@
 {
   "name": "@johnls/easy",
-  "version": "1.0.0",
+  "version": "4.0.0",
   "description": "A tool to make multi-package project management a easy!",
   "bin": {
     "easy": "dist/easy.js"
