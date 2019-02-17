@@ -1,2 +1,2 @@
-export const version = '4.0.0'
-export const fullVersion = '4.0.0-20190214.0'
+export const version = '4.1.0'
+export const fullVersion = '4.1.0-20190217.0'

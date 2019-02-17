@@ -3,27 +3,27 @@
     "package.json",
     "src/version.js",
     "scratch/version.tag.txt",
-    "scratch/version.desc.txt",
+    "scratch/version.desc.txt"
   ],
   buildFormat: "full",
   tags: {
     major: 4,
-    minor: 0,
+    minor: 1,
     patch: 0,
-    build: 20190214,
+    build: 20190217,
     revision: 0,
     tz: "America/Los_Angeles",
     startYear: "2017",
-    sequence: 15,
+    sequence: 16
   },
   fileTypes: [
     {
       name: "Node Package",
       glob: "**/package.json",
       update: {
-        search: '^(?<begin> *"version" *: *")\\d+\\.\\d+\\.\\d+(?<end>" *, *)$',
-        replace: "${begin}${major}.${minor}.${patch}${end}",
-      },
+        search: "^(?<begin> *\"version\" *: *\")\\d+\\.\\d+\\.\\d+(?<end>\" *, *)$",
+        replace: "${begin}${major}.${minor}.${patch}${end}"
+      }
     },
     {
       name: "Javascript File",
@@ -31,23 +31,23 @@
       updates: [
         {
           search: "^(?<begin>\\s*export\\s*const\\s*version\\s*=\\s*')\\d+\\.\\d+\\.\\d+(?<end>'\\s*)$",
-          replace: "${begin}${major}.${minor}.${patch}${end}",
+          replace: "${begin}${major}.${minor}.${patch}${end}"
         },
         {
           search: "^(?<begin>\\s*export\\s*const\\s*fullVersion\\s*=\\s*')\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+(?<end>'\\s*)$",
-          replace: "${begin}${major}.${minor}.${patch}-${build}.${revision}${end}",
-        },
-      ],
+          replace: "${begin}${major}.${minor}.${patch}-${build}.${revision}${end}"
+        }
+      ]
     },
     {
       name: "Commit tag file",
       glob: "**/*.tag.txt",
-      write: "${major}.${minor}.${patch}",
+      write: "${major}.${minor}.${patch}"
     },
     {
       name: "Commit tag description file",
       glob: "**/*.desc.txt",
-      write: "Version ${major}.${minor}.${patch}-${build}.${revision}",
-    },
-  ],
+      write: "Version ${major}.${minor}.${patch}-${build}.${revision}"
+    }
+  ]
 }
