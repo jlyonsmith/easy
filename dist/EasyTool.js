@@ -99,7 +99,7 @@ class EasyTool {
     };
   }
 
-  execWithOutput(command, options = {}) {
+  execAndLog(command, options = {}) {
     return new Promise((resolve, reject) => {
       const cp = (0, _child_process.exec)(command, options);
       const re = new RegExp(/\n$/);
@@ -129,14 +129,34 @@ class EasyTool {
           this.log.info(s);
         }
       });
-      cp.on("error", () => {
-        reject();
+      cp.on("error", error => {
+        reject(error);
       });
       cp.on("exit", function (code) {
         if (code !== 0) {
-          reject();
+          reject(new Error("Exit code non-zero"));
         } else {
           resolve();
+        }
+      });
+    });
+  }
+
+  execAndCapture(command, options) {
+    return new Promise((resolve, reject) => {
+      const cp = (0, _child_process.exec)(command, options);
+      let output = "";
+      cp.stdout.on("data", data => {
+        output += data.toString();
+      });
+      cp.on("error", error => {
+        reject(error);
+      });
+      cp.on("exit", function (code) {
+        if (code !== 0) {
+          reject(new Error("Exit code non-zero"));
+        } else {
+          resolve(output);
         }
       });
     });
@@ -233,7 +253,7 @@ end tell
       this.log.info(script);
     }
 
-    await this.execWithOutput(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, {
+    await this.execAndLog(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, {
       shell: "/bin/bash"
     });
   }
@@ -243,7 +263,7 @@ end tell
 
     if (pkg.content.scripts && pkg.content.scripts.test) {
       this.log.info2(`Testing '${_path.default.basename(dirName)}'...`);
-      await this.execWithOutput(`npm test`, {
+      await this.execAndLog(`npm test`, {
         cwd: dirName
       });
     }
@@ -285,7 +305,7 @@ end tell
     }
 
     this.log.info2(`Installing modules in '${name}'...`);
-    await this.execWithOutput(`npm install`, {
+    await this.execAndLog(`npm install`, {
       cwd: dirName
     });
   }
@@ -310,7 +330,7 @@ end tell
 
     if (pkg.content.scripts && pkg.content.scripts.build) {
       this.log.info2(`Building '${name}'...`);
-      await this.execWithOutput("npm run build", {
+      await this.execAndLog("npm run build", {
         cwd: dirName
       });
     }
@@ -332,7 +352,7 @@ end tell
 
     if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`);
-      await this.execWithOutput("npm run deploy", {
+      await this.execAndLog("npm run deploy", {
         cwd: dirName,
         ansible: true
       });
@@ -353,25 +373,43 @@ end tell
       throw new Error(`Major, minor or patch number must be incremented for release`);
     }
 
-    const name = _path.default.basename(dirName);
-
-    this.log.info2(`Starting release of '${name}'...`);
-    this.log.info2("Checking for Uncommitted Changes...");
+    this.log.info2("Checking for uncommitted changes...");
 
     try {
-      await this.execWithOutput("git diff-index --quiet HEAD --");
+      await this.execAndLog("git diff-index --quiet HEAD --");
     } catch (error) {
       throw new Error("There are uncomitted changes - commit or stash them and try again");
     }
 
-    this.log.info2("Pulling...");
-    await this.execWithOutput("git pull");
-    this.log.info2("Updating Version...");
+    let defaultBranch = await this.execAndCapture("git rev-parse --abbrev-ref HEAD");
+
+    if (defaultBranch === "HEAD") {
+      defaultBranch = "master";
+    } else {
+      defaultBranch = defaultBranch.trim(); // Get rid of newline
+    }
+
+    const branch = options.branch || defaultBranch;
+
+    const name = _path.default.basename(dirName);
+
+    this.log.info2(`Starting release of '${name}'...`);
+    this.log.info2(`Checking out '${branch}'...`);
+    await this.execAndLog(`git checkout ${branch}`);
+    this.log.info2("Pulling latest...");
+    await this.execAndLog("git pull");
+    this.log.info2("Updating version...");
     await (0, _fsExtra.ensureDir)("scratch");
     const incrFlag = options.version === "patch" ? "-i patch" : options.version === "minor" ? "-i minor" : "-i major";
-    await this.execWithOutput(`npx stampver ${incrFlag} -u -s`);
-    const tagName = await (0, _fsExtra.readFile)("scratch/version.tag.txt");
-    const tagDescription = await (0, _fsExtra.readFile)("scratch/version.desc.txt");
+    await this.execAndLog(`npx stampver ${incrFlag} -u -s`);
+    let tagName = await (0, _fsExtra.readFile)("scratch/version.tag.txt");
+    let tagDescription = await (0, _fsExtra.readFile)("scratch/version.desc.txt");
+
+    if (branch !== "master") {
+      const suffix = "-" + branch;
+      tagName += suffix;
+      tagDescription += suffix;
+    }
 
     try {
       if (options.clean) {
@@ -384,18 +422,18 @@ end tell
       await this._test(dirName);
     } catch (error) {
       // Roll back changes if anything went wrong
-      await this.execWithOutput("git checkout -- .");
+      await this.execAndLog(`git checkout ${options.branch} .`);
       return;
     }
 
     this.log.info2("Staging version changes...");
-    await this.execWithOutput("git add :/");
+    await this.execAndLog("git add :/");
     this.log.info("Committing version changes...");
-    await this.execWithOutput(`git commit -m '${tagDescription}'`);
+    await this.execAndLog(`git commit -m '${tagDescription}'`);
     this.log.info2("Tagging...");
-    await this.execWithOutput(`git tag -a ${tagName} -m '${tagDescription}'`);
+    await this.execAndLog(`git tag -a '${tagName}' -m '${tagDescription}'`);
     this.log.info2("Pushing to Git...");
-    await this.execWithOutput("git push --follow-tags");
+    await this.execAndLog("git push --follow-tags");
 
     if (options.deploy) {
       await this._deploy(dirName);
@@ -415,7 +453,7 @@ end tell
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "clean", "install", "actors", "debug"],
+      boolean: ["help", "version", "clean", "install", "actors", "debug", "branch"],
       alias: {
         a: "actors"
       }
@@ -551,6 +589,7 @@ tags local Git repo, pushes changes then optionally runs an npm deploy.
 
 Options:
   --deploy      Run a deployment after a success release
+  --branch      Will operate on a specific branch. Defaults to 'master'.
   --clean       Clean before installing
 `);
           return 0;
@@ -559,6 +598,7 @@ Options:
         await this.releaseAll({
           version: args._[0],
           deploy: !!args.deploy,
+          branch: args.branch,
           clean: !!args.clean
         });
         break;
@@ -570,9 +610,10 @@ Usage: ${this.toolName} <cmd> [options]
 
 Description:
 
-Current directory must contain a package.json, which can be a dummy file.
-Operates on all sub-directories containing a package.json excluding
-node_modules directories.
+Easily install, build, test, release or deploy npm based packages.
+
+The current directory should contain a package.json, which can be an empty file.
+Will recursively operate on all package.json files in a source tree.
 
 Commands:
   start       Run 'npm start' in new terminal tabs.

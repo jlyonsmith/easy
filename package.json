@@ -2,7 +2,7 @@
   "name": "@johnls/easy",
   "private": false,
   "version": "4.0.0",
-  "description": "A tool to make multi-package project management a easy!",
+  "description": "A tool to make package project management easy!",
   "bin": {
     "easy": "dist/easy.js"
   },
@@ -14,7 +14,7 @@
     "debug:easy": "babel-node --inspect-brk src/easy.js",
     "test": "jest --coverage",
     "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
-    "deploy": "npm publish"
+    "deploy": "npm publish --access public"
   },
   "jest": {
     "testPathIgnorePatterns": [
