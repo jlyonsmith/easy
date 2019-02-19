@@ -12,21 +12,19 @@ A tool that makes building, testing, starting, deploying and releasing multi-pac
 
 If you don't use all of the above, then `easy` is probably not going to be that helpful too you. Told you it was opinionated!
 
-I am aware that this tool has the same name as the Linux `easy` tool. I don't use that, so it's not an issue for me.
-
 ## Installation
 
 Install the package globally or use `npx` to run the latest version:
 
 ```
 npm install -g @johnls/easy
-easy help
+easy --help
 ```
 
 or:
 
 ```
-npx @johnls/easy help
+npx @johnls/easy --help
 ```
 
 ## Build
