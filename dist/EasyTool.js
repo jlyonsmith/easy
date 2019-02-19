@@ -453,7 +453,8 @@ end tell
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "clean", "install", "actors", "debug", "branch"],
+      boolean: ["help", "version", "clean", "install", "actors", "debug"],
+      string: ["branch"],
       alias: {
         a: "actors"
       }
