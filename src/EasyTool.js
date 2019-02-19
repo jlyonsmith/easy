@@ -29,6 +29,29 @@ export class EasyTool {
     })
   }
 
+  execAndCapture(command, options) {
+    return new Promise((resolve, reject) => {
+      const cp = exec(command, options)
+      let output = ""
+
+      cp.stdout.on("data", (data) => {
+        output += data.toString()
+      })
+
+      cp.on("error", (error) => {
+        reject(error)
+      })
+
+      cp.on("exit", function(code) {
+        if (code !== 0) {
+          reject(new Error("Non-zero exit code"))
+        } else {
+          resolve(output)
+        }
+      })
+    })
+  }
+
   async getPackageInfo() {
     if (!(await exists("package.json"))) {
       throw new Error(
@@ -395,14 +418,12 @@ end tell
       )
     }
 
-    let defaultBranch = await this.execAndCapture(
+    let defaultBranch = (await this.execAndCapture(
       "git rev-parse --abbrev-ref HEAD"
-    )
+    )).trim()
 
     if (defaultBranch === "HEAD") {
       defaultBranch = "master"
-    } else {
-      defaultBranch = defaultBranch.trim() // Get rid of newline
     }
 
     const branch = options.branch || defaultBranch
