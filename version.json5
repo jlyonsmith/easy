@@ -30,11 +30,11 @@
       glob: "**/version.js",
       updates: [
         {
-          search: "^(?<begin>\\s*export\\s*const\\s*version\\s*=\\s*')\\d+\\.\\d+\\.\\d+(?<end>'\\s*)$",
+          search: "^(?<begin>\\s*export\\s*const\\s*version\\s*=\\s*\")\\d+\\.\\d+\\.\\d+(?<end>\"\\s*)$",
           replace: "${begin}${major}.${minor}.${patch}${end}"
         },
         {
-          search: "^(?<begin>\\s*export\\s*const\\s*fullVersion\\s*=\\s*')\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+(?<end>'\\s*)$",
+          search: "^(?<begin>\\s*export\\s*const\\s*fullVersion\\s*=\\s*\")\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+(?<end>\"\\s*)$",
           replace: "${begin}${major}.${minor}.${patch}-${build}.${revision}${end}"
         }
       ]
