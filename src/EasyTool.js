@@ -272,9 +272,9 @@ export class EasyTool {
       )
     }
 
-    this._checkForUncommittedChanges()
+    await this._checkForUncommittedChanges()
 
-    const branch = options.branch || this._getCurrentBranch()
+    const branch = options.branch || (await this._getCurrentBranch())
     const name = path.basename(dirName)
 
     this.log.info2(`Starting release of '${name}' on branch '${branch}'...`)
@@ -315,6 +315,7 @@ export class EasyTool {
     }
 
     if (!isNewTag) {
+      await this._execAndLog(`git checkout ${branch} .`)
       throw new Error(
         "Cannot re-release an existing version; do a patch release"
       )
@@ -350,10 +351,10 @@ export class EasyTool {
     this.log.info(`Finished release of '${name}' on branch '${branch}'`)
   }
 
-  async _rollback() {
-    this._checkForUncommittedChanges()
+  async _rollback(dirName, options = {}) {
+    await this._checkForUncommittedChanges()
 
-    const branch = options.branch || this._getCurrentBranch()
+    const branch = options.branch || (await this._getCurrentBranch())
     const name = path.basename(dirName)
 
     this.log.info2(`Starting rollback of '${name}' on branch '${branch}'...`)
