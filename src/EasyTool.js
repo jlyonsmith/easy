@@ -224,7 +224,7 @@ export class EasyTool {
     }
   }
 
-  async _deploy(dirName) {
+  async _deploy(dirName, options = {}) {
     const pkg = this.pkgInfo.pkgs.get(dirName)
     const name = path.basename(dirName)
 
@@ -512,11 +512,11 @@ end tell
   }
 
   async testAll() {
-    await this._recurse(["npm"], this._test, options)
+    await this._recurse(["npm"], this._test)
   }
 
   async cleanAll() {
-    await this._recurse(["npm"], this._clean, options)
+    await this._recurse(["npm"], this._clean)
   }
 
   async installAll(options) {
@@ -536,7 +536,7 @@ end tell
   }
 
   async deployAll() {
-    await this._recurse(["npm"], this._release, options)
+    await this._recurse(["npm"], this._deploy)
   }
 
   async rollbackAll(options) {

@@ -233,7 +233,7 @@ class EasyTool {
     }
   }
 
-  async _deploy(dirName) {
+  async _deploy(dirName, options = {}) {
     const pkg = this.pkgInfo.pkgs.get(dirName);
 
     const name = _path.default.basename(dirName);
