@@ -154,7 +154,7 @@ class EasyTool {
       });
       cp.on("exit", function (code) {
         if (code !== 0) {
-          reject(new Error("Exit code non-zero"));
+          reject(new Error(`'${command}' returned ${code}`));
         } else {
           resolve();
         }
@@ -174,7 +174,7 @@ class EasyTool {
       });
       cp.on("exit", function (code) {
         if (code !== 0) {
-          reject(new Error("Exit code non-zero"));
+          reject(new Error(`'${command}' returned ${code}`));
         } else {
           resolve(output);
         }
@@ -257,25 +257,19 @@ class EasyTool {
     }
   }
 
-  async _getCurrentBranch() {
-    let branch = (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim();
-
-    if (branch === "HEAD") {
-      branch = "master";
-    }
-
-    return branch;
-  }
-
   async _release(dirName, options = {}) {
     if (options.version !== "major" && options.version !== "minor" && options.version !== "patch" && options.version !== "revision") {
       throw new Error(`Major, minor, patch or revision must be incremented for release`);
     }
 
     await this._checkForUncommittedChanges();
-    const branch = options.branch || (await this._getCurrentBranch());
+    const branch = options.branch || (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim();
 
     const name = _path.default.basename(dirName);
+
+    if (branch === "HEAD") {
+      throw new Error("Cannot do release from a detached HEAD state");
+    }
 
     this.log.info2(`Starting release of '${name}' on branch '${branch}'...`);
     this.log.info2(`Checking out '${branch}'...`);
@@ -305,8 +299,7 @@ class EasyTool {
     }
 
     if (!isNewTag) {
-      await this._execAndLog(`git checkout ${branch} .`);
-      throw new Error("Cannot re-release an existing version; do a patch release");
+      this.log.warning(`Tag '${tagName}' already exists and will not be overwritten`);
     }
 
     try {
@@ -327,8 +320,12 @@ class EasyTool {
     await this._execAndLog("git add :/");
     this.log.info("Committing version changes...");
     await this._execAndLog(`git commit -m '${tagDescription}'`);
-    this.log.info2("Tagging...");
-    await this._execAndLog(`git tag -a '${tagName}' -m '${tagDescription}'`);
+
+    if (isNewTag) {
+      this.log.info2("Tagging...");
+      await this._execAndLog(`git tag -a '${tagName}' -m '${tagDescription}'`);
+    }
+
     this.log.info2("Pushing to Git...");
     await this._execAndLog("git push --follow-tags");
 
@@ -341,18 +338,15 @@ class EasyTool {
 
   async _rollback(dirName, options = {}) {
     await this._checkForUncommittedChanges();
-    const branch = options.branch || (await this._getCurrentBranch());
+    const ref = options.branch || (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim();
 
     const name = _path.default.basename(dirName);
 
-    this.log.info2(`Starting rollback of '${name}' on branch '${branch}'...`);
-    const lastTag = await this._execAndCapture(`git describe --tags --abbrev=0 ${branch}`);
+    this.log.info2(`Starting rollback of '${name}' from ref '${ref}'...`);
+    const lastTag = (await this._execAndCapture(`git describe --tags --abbrev=0 ${ref}`)).trim();
     const penultimateTag = await this._execAndCapture(`git describe --tags --abbrev=0 ${lastTag}~1`);
     this.log.info2(`Rolling back to tag '${penultimateTag}'...`);
     await this._execAndLog(`git checkout ${penultimateTag}`);
-    this.log.info2("Rolling back version...");
-    await (0, _fsExtra.ensureDir)("scratch");
-    await this._execAndLog("npx stampver -u -s");
 
     try {
       if (options.clean) {
@@ -371,7 +365,7 @@ class EasyTool {
       await this._deploy(dirName);
     }
 
-    this.log.info(`Finished rollback of '${name}' on branch '${branch}'`);
+    this.log.info(`Finished rollback of '${name}' from ref '${ref}'`);
   }
 
   async _recurse(commands, operation, options) {

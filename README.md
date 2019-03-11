@@ -92,3 +92,7 @@ If you add the `--deploy` it will run `npm run deploy` to run the `deploy` scrip
 ## Deploy
 
 The `deploy` command just runs `npm run deploy`. Simple.
+
+## Rollback
+
+To quickly rollback the current `HEAD` of all branches to the tag prior to the current tag.
