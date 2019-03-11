@@ -476,11 +476,11 @@ end tell
   }
 
   async testAll() {
-    await this._recurse(["npm"], this._test, options);
+    await this._recurse(["npm"], this._test);
   }
 
   async cleanAll() {
-    await this._recurse(["npm"], this._clean, options);
+    await this._recurse(["npm"], this._clean);
   }
 
   async installAll(options) {
@@ -496,7 +496,7 @@ end tell
   }
 
   async deployAll() {
-    await this._recurse(["npm"], this._release, options);
+    await this._recurse(["npm"], this._deploy);
   }
 
   async rollbackAll(options) {
