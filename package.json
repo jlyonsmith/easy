@@ -6,6 +6,7 @@
   "bin": {
     "easy": "dist/easy.js"
   },
+  "main": "dist/EasyTool.js",
   "files": [
     "dist/**"
   ],
