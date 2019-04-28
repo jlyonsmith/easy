@@ -666,7 +666,7 @@ Will colorize Ansible output if detected.
         if (args.help) {
           this.log.info(`Usage: ${
             this.toolName
-          } release [major|minor|patch] [options]
+          } release [major|minor|patch|revision] [options]
 
 Description:
 
