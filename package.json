@@ -15,7 +15,7 @@
     "debug:easy": "babel-node --inspect-brk src/easy.js",
     "test": "jest --coverage",
     "test:debug": "babel-node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
-    "deploy": "npm publish --access public"
+    "deploy": "npm publish --access public --dry-run"
   },
   "jest": {
     "testPathIgnorePatterns": [

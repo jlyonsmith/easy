@@ -111,35 +111,33 @@ export class EasyTool {
   }
 
   _execAndLog(command, options = {}) {
+    let outBuf = ""
+    let errBuf = ""
+
     return new Promise((resolve, reject) => {
       const cp = exec(command, options)
-      const re = new RegExp(/\n$/)
 
       cp.stdout.on("data", (data) => {
-        const s = data.toString().replace(re, "")
+        let s = data.toString()
 
-        if (options.ansible) {
-          if (s.startsWith("ok: ")) {
-            this.log.ansibleOK(s)
-          } else if (s.startsWith("changed: ")) {
-            this.log.ansibleChanged(s)
-          } else if (s.startsWith("skipping: ")) {
-            this.log.ansibleSkipping(s)
-          } else if (s.startsWith("error: ")) {
-            this.log.ansibleError(s)
-          } else {
-            this.log.info(s)
-          }
-        } else {
+        if (s.endsWith("\n")) {
+          s = (outBuf + s).trim()
           this.log.info(s)
+          outBuf = ""
+        } else {
+          outBuf += s
         }
       })
 
       cp.stderr.on("data", (data) => {
-        const s = data.toString().replace(re, "")
+        let s = data.toString().trim()
 
-        if (s !== "npm" && s !== "notice" && s !== "npm notice") {
+        if (s.endsWith("\n")) {
+          s = (errBuf + s).trim()
           this.log.info(s)
+          errBuf = ""
+        } else {
+          errBuf += s
         }
       })
 
@@ -232,7 +230,6 @@ export class EasyTool {
       this.log.info2(`Deploying '${name}'...`)
       await this._execAndLog("npm run deploy", {
         cwd: dirName,
-        ansible: true,
       })
     }
   }
