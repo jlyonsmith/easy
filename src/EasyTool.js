@@ -10,11 +10,10 @@ import tmp from "tmp-promise"
 import { sync as commandExistsSync } from "command-exists"
 
 export class EasyTool {
-  constructor(toolName, log, options) {
-    options = options || {}
-    this.toolName = toolName
-    this.log = log
-    this.debug = options.debug
+  constructor(container) {
+    this.toolName = container.toolName
+    this.log = container.log
+    this.debug = !!container.debug
   }
 
   _ensureCommands(cmds) {

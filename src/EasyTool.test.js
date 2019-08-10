@@ -1,53 +1,40 @@
 import { EasyTool } from "./EasyTool"
-import tmp from "tmp"
-import fs from "fs"
-import util from "util"
 
-let tmpDirObj = null
+let container = null
 
-beforeAll(() => {
-  tmpDirObj = tmp.dirSync()
-})
-
-afterAll(() => {
-  if (tmpDirObj) {
-    tmpDirObj.removeCallback()
+beforeEach(() => {
+  container = {
+    toolName: "easy",
+    log: {
+      info: jest.fn(),
+      warning: jest.fn(),
+      error: jest.fn(),
+    },
   }
 })
 
-function getMockLog() {
-  return {
-    info: jest.fn(),
-    warning: jest.fn(),
-    error: jest.fn(),
-  }
-}
-
-function getOutput(fn) {
+const getOutput = (fn) => {
   const calls = fn.mock.calls
-  if (calls.length > 0 && calls[0].length > 0) {
-    return calls[0][0]
-  } else {
-    return ""
-  }
+
+  return calls.length > 0 && calls[0].length > 0 ? calls[0][0] : ""
 }
 
-test("--help", async (done) => {
-  const mockLog = getMockLog()
-  const tool = new EasyTool("easy", mockLog)
+test("--help", async () => {
+  const tool = new EasyTool(container)
   const exitCode = await tool.run(["--help"])
 
   expect(exitCode).toBe(0)
-  expect(getOutput(mockLog.info)).toEqual(expect.stringContaining("--help"))
-  done()
+  expect(getOutput(container.log.info)).toEqual(
+    expect.stringContaining("--help")
+  )
 })
 
-test("--version", async (done) => {
-  const mockLog = getMockLog()
-  const tool = new EasyTool("easy", mockLog)
+test("--version", async () => {
+  const tool = new EasyTool(container)
   const exitCode = await tool.run(["--version"])
 
   expect(exitCode).toBe(0)
-  expect(getOutput(mockLog.info)).toEqual(expect.stringMatching(/\d\.\d\.\d/))
-  done()
+  expect(getOutput(container.log.info)).toEqual(
+    expect.stringMatching(/\d\.\d\.\d/)
+  )
 })
