@@ -10,8 +10,8 @@
     major: 4,
     minor: 3,
     patch: 0,
-    build: 20190729,
-    revision: 0,
+    build: 20190810,
+    revision: 2,
     tz: "America/Los_Angeles",
     startYear: "2017",
     sequence: 21
@@ -30,12 +30,12 @@
       glob: "**/version.js",
       updates: [
         {
-          search: "^(?<begin>\\s*export\\s*const\\s*version\\s*=\\s*\")\\d+\\.\\d+\\.\\d+(?<end>\"\\s*)$",
+          search: "^(?<begin>\\s*export\\s*const\\s*shortVersion\\s*=\\s*\")\\d+\\.\\d+\\.\\d+(?<end>\"\\s*)$",
           replace: "${begin}${major}.${minor}.${patch}${end}"
         },
         {
-          search: "^(?<begin>\\s*export\\s*const\\s*fullVersion\\s*=\\s*\")\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+(?<end>\"\\s*)$",
-          replace: "${begin}${major}.${minor}.${patch}-${build}.${revision}${end}"
+          search: "^(?<begin>\\s*export\\s*const\\s*fullVersion\\s*=\\s*\")\\d+\\.\\d+\\.\\d+\\+\\d+\\.\\d+(?<end>\"\\s*)$",
+          replace: "${begin}${major}.${minor}.${patch}+${build}.${revision}${end}"
         }
       ]
     },
@@ -47,7 +47,7 @@
     {
       name: "Commit tag description file",
       glob: "**/*.desc.txt",
-      write: "Version ${major}.${minor}.${patch}-${build}.${revision}"
+      write: "Version ${major}.${minor}.${patch}+${build}.${revision}"
     }
   ]
 }

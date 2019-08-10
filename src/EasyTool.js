@@ -117,28 +117,18 @@ export class EasyTool {
     return new Promise((resolve, reject) => {
       const cp = exec(command, options)
 
-      cp.stdout.on("data", (data) => {
-        let s = data.toString()
+      // From https://stackoverflow.com/a/29497680/576235
+      const ansiEscapeRegex = new RegExp(
+        /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g
+      )
+      const stripAnsiEscapes = (s) => s.replace(ansiEscapeRegex, "")
 
-        if (s.endsWith("\n")) {
-          s = (outBuf + s).trim()
-          this.log.info(s)
-          outBuf = ""
-        } else {
-          outBuf += s
-        }
+      cp.stdout.on("data", (data) => {
+        this.log.info(stripAnsiEscapes(data.toString()).trim())
       })
 
       cp.stderr.on("data", (data) => {
-        let s = data.toString().trim()
-
-        if (s.endsWith("\n")) {
-          s = (errBuf + s).trim()
-          this.log.info(s)
-          errBuf = ""
-        } else {
-          errBuf += s
-        }
+        this.log.info(stripAnsiEscapes(data.toString()).trim())
       })
 
       cp.on("error", (error) => {

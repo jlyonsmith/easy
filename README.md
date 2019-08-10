@@ -16,14 +16,14 @@ If you don't use all of the above, then `easy` is probably not going to be that 
 
 Install the package globally or use `npx` to run the latest version:
 
-```
+```sh
 npm install -g @johnls/easy
 easy --help
 ```
 
 or:
 
-```
+```sh
 npx @johnls/easy --help
 ```
 
@@ -31,7 +31,7 @@ npx @johnls/easy --help
 
 To build all projects recursively use:
 
-```
+```sh
 easy build
 ```
 
@@ -41,7 +41,7 @@ You can also specify `--install` and `--clean` with this command.
 
 To install all `npm` packages recursively use:
 
-```
+```sh
 easy install
 ```
 
@@ -51,7 +51,7 @@ If you specify `--clean` it will perform the `clean` command before installation
 
 To recursively clean out all `node_modules`, `dist`, `build` and `package-lock.json` files use:
 
-```
+```sh
 easy clean
 ```
 
@@ -59,7 +59,7 @@ easy clean
 
 To run all tests recursively use:
 
-```
+```sh
 easy test
 ```
 
@@ -69,13 +69,13 @@ Each command will search recursively through your project tree looking for `pack
 
 It's common to have a NodeJS based product comprised of a website, a server and perhaps mobile apps. `easy` will run all the `start` scripts recursively with:
 
-```
+```sh
 easy start
 ```
 
 Easy is also intended to be used with NodeJS servers consisting of multiple _actor_ services (or node sub-processes.) These actors processes have `script` names that start with `actor:`.
 
-```
+```sh
 easy start --actors
 ```
 

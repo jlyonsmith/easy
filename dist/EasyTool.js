@@ -123,28 +123,17 @@ class EasyTool {
     let outBuf = "";
     let errBuf = "";
     return new Promise((resolve, reject) => {
-      const cp = (0, _child_process.exec)(command, options);
-      cp.stdout.on("data", data => {
-        let s = data.toString();
+      const cp = (0, _child_process.exec)(command, options); // From https://stackoverflow.com/a/29497680/576235
 
-        if (s.endsWith("\n")) {
-          s = (outBuf + s).trim();
-          this.log.info(s);
-          outBuf = "";
-        } else {
-          outBuf += s;
-        }
+      const ansiEscapeRegex = new RegExp(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g);
+
+      const stripAnsiEscapes = s => s.replace(ansiEscapeRegex, "");
+
+      cp.stdout.on("data", data => {
+        this.log.info(stripAnsiEscapes(data.toString()));
       });
       cp.stderr.on("data", data => {
-        let s = data.toString().trim();
-
-        if (s.endsWith("\n")) {
-          s = (errBuf + s).trim();
-          this.log.info(s);
-          errBuf = "";
-        } else {
-          errBuf += s;
-        }
+        this.log.info(stripAnsiEscapes(data.toString()));
       });
       cp.on("error", error => {
         reject(error);
