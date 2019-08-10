@@ -6,7 +6,7 @@ import { readFile, writeFile, remove, exists, ensureDir } from "fs-extra"
 import path from "path"
 import process from "process"
 import { exec } from "child_process"
-import tmp from "tmp"
+import tmp from "tmp-promise"
 import { sync as commandExistsSync } from "command-exists"
 
 export class EasyTool {
