@@ -21,18 +21,17 @@ var _process = _interopRequireDefault(require("process"));
 
 var _child_process = require("child_process");
 
-var _tmp = _interopRequireDefault(require("tmp"));
+var _tmpPromise = _interopRequireDefault(require("tmp-promise"));
 
 var _commandExists = require("command-exists");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 class EasyTool {
-  constructor(toolName, log, options) {
-    options = options || {};
-    this.toolName = toolName;
-    this.log = log;
-    this.debug = options.debug;
+  constructor(container) {
+    this.toolName = container.toolName;
+    this.log = container.log;
+    this.debug = !!container.debug;
   }
 
   _ensureCommands(cmds) {
@@ -130,10 +129,10 @@ class EasyTool {
       const stripAnsiEscapes = s => s.replace(ansiEscapeRegex, "");
 
       cp.stdout.on("data", data => {
-        this.log.info(stripAnsiEscapes(data.toString()));
+        this.log.info(stripAnsiEscapes(data.toString()).trim());
       });
       cp.stderr.on("data", data => {
-        this.log.info(stripAnsiEscapes(data.toString()));
+        this.log.info(stripAnsiEscapes(data.toString()).trim());
       });
       cp.on("error", error => {
         reject(error);
@@ -368,9 +367,9 @@ class EasyTool {
 
     this._ensureCommands(["osascript"]);
 
-    const tmpObjMain = _tmp.default.fileSync();
+    const tmpObjMain = _tmpPromise.default.fileSync();
 
-    const tmpObjHelper = _tmp.default.fileSync();
+    const tmpObjHelper = _tmpPromise.default.fileSync();
 
     await (0, _fsExtra.writeFile)(tmpObjHelper.name, `# function for setting iTerm2 titles
 function title {

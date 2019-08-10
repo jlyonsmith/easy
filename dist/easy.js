@@ -19,21 +19,12 @@ const log = {
   },
   warning: function () {
     console.error(_chalk.default.yellow("warning:", [...arguments].join(" ")));
-  },
-  ansibleOK: function () {
-    console.error(_chalk.default.green([...arguments].join(" ")));
-  },
-  ansibleChanged: function () {
-    console.error(_chalk.default.yellow([...arguments].join(" ")));
-  },
-  ansibleSkipping: function () {
-    console.error(_chalk.default.cyan([...arguments].join(" ")));
-  },
-  ansibleError: function () {
-    console.error(_chalk.default.red([...arguments].join(" ")));
   }
 };
-const tool = new _EasyTool.EasyTool(_path.default.basename(process.argv[1], ".js"), log);
+const tool = new _EasyTool.EasyTool({
+  toolName: _path.default.basename(process.argv[1], ".js"),
+  log
+});
 tool.run(process.argv.slice(2)).then(exitCode => {
   process.exitCode = exitCode;
 }).catch(error => {
