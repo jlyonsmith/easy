@@ -5,9 +5,12 @@ import toposort from "toposort"
 import { readFile, writeFile, remove, exists, ensureDir } from "fs-extra"
 import path from "path"
 import process from "process"
-import { exec } from "child_process"
+import childProcess from "child_process"
 import tmp from "tmp-promise"
 import { sync as commandExistsSync } from "command-exists"
+import util from "util"
+
+childProcess.execFileAsync = util.promisify(childProcess.execFile)
 
 export class EasyTool {
   constructor(container) {
@@ -28,108 +31,12 @@ export class EasyTool {
     })
   }
 
-  _execAndCapture(command, options) {
-    return new Promise((resolve, reject) => {
-      const cp = exec(command, options)
-      let output = ""
+  _execAndLog(command, args, options = {}) {
+    options.stdio = "inherit"
 
-      cp.stdout.on("data", (data) => {
-        output += data.toString()
-      })
-
-      cp.on("error", (error) => {
-        reject(error)
-      })
-
-      cp.on("exit", function(code) {
-        if (code !== 0) {
-          reject(new Error("Non-zero exit code"))
-        } else {
-          resolve(output)
-        }
-      })
-    })
-  }
-
-  async _getPackageInfo() {
-    if (!(await exists("package.json"))) {
-      throw new Error(
-        "The current directory does not contain a package.json file"
-      )
-    }
-
-    const filenames = globSync("**/package.json", {
-      ignore: ["**/node_modules/**", "**/scratch/**"],
-      realpath: true,
-    })
-    const dirNames = filenames.map((filename) => path.dirname(filename))
-    const pkgMap = new Map(dirNames.map((dirName) => [dirName, {}]))
-    let edges = []
-    let rootPkg = null
-
-    for (let pair of pkgMap) {
-      const [dirName, pkg] = pair
-      const packageFilename = dirName + "/package.json"
-      let content = null
-
-      try {
-        content = JSON.parse(
-          await readFile(packageFilename, { encoding: "utf8" })
-        )
-      } catch (error) {
-        this.log.error(`Reading ${packageFilename}`)
-        throw error
-      }
-
-      pkg.content = content
-
-      if (dirName === process.cwd()) {
-        rootPkg = pkg
-      } else if (content.dependencies) {
-        const prefix = "file:"
-
-        Object.entries(content.dependencies).forEach((arr) => {
-          if (arr[1].startsWith(prefix)) {
-            const otherdirName = path.resolve(
-              path.join(dirName, arr[1].substring(prefix.length))
-            )
-
-            if (pkgMap.has(otherdirName)) {
-              edges.push([dirName, otherdirName])
-            }
-          }
-        })
-      }
-    }
-
-    return {
-      pkgs: pkgMap,
-      order: toposort.array(dirNames, edges).reverse(),
-      rootPkg,
-    }
-  }
-
-  _execAndLog(command, options = {}) {
-    let outBuf = ""
-    let errBuf = ""
+    const cp = childProcess.spawn(command, args, options)
 
     return new Promise((resolve, reject) => {
-      const cp = exec(command, options)
-
-      // From https://stackoverflow.com/a/29497680/576235
-      const ansiEscapeRegex = new RegExp(
-        /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g
-      )
-      const stripAnsiEscapes = (s) => s.replace(ansiEscapeRegex, "")
-
-      cp.stdout.on("data", (data) => {
-        this.log.info(stripAnsiEscapes(data.toString()).trim())
-      })
-
-      cp.stderr.on("data", (data) => {
-        this.log.info(stripAnsiEscapes(data.toString()).trim())
-      })
-
       cp.on("error", (error) => {
         reject(error)
       })
@@ -144,89 +51,144 @@ export class EasyTool {
     })
   }
 
-  _execAndCapture(command, options) {
-    return new Promise((resolve, reject) => {
-      const cp = exec(command, options)
-      let output = ""
-
-      cp.stdout.on("data", (data) => {
-        output += data.toString()
-      })
-
-      cp.on("error", (error) => {
-        reject(error)
-      })
-
-      cp.on("exit", function(code) {
-        if (code !== 0) {
-          reject(new Error(`'${command}' returned ${code}`))
-        } else {
-          resolve(output)
-        }
-      })
-    })
+  async _execAndCapture(command, args, options) {
+    return (await childProcess.execFileAsync(command, args, options)).stdout
   }
 
-  async _test(dirName) {
-    const pkg = this.pkgInfo.pkgs.get(dirName)
+  async _getPackageInfo(rootDir) {
+    rootDir = rootDir || process.cwd()
 
-    if (pkg.content.scripts && pkg.content.scripts.test) {
-      this.log.info2(`Testing '${path.basename(dirName)}'...`)
-      await this._execAndLog(`npm test`, { cwd: dirName })
+    if (!(await exists(path.join(rootDir, "package.json")))) {
+      throw new Error(
+        "The current directory does not contain a package.json file"
+      )
+    }
+
+    const filenames = globSync("**/package.json", {
+      ignore: ["**/node_modules/**", "**/scratch/**"],
+      realpath: true,
+      cwd: rootDir,
+    })
+    const dirNames = filenames.map((filename) => path.dirname(filename))
+    const pkgMap = new Map(dirNames.map((dirPath) => [dirPath, {}]))
+    let edges = []
+    let rootPkg = null
+
+    for (let pair of pkgMap) {
+      const [dirPath, pkg] = pair
+      const packageFilename = dirPath + "/package.json"
+      let content = null
+
+      try {
+        content = JSON.parse(
+          await readFile(packageFilename, { encoding: "utf8" })
+        )
+      } catch (error) {
+        this.log.error(`Reading ${packageFilename}`)
+        throw error
+      }
+
+      pkg.content = content
+
+      if (dirPath === process.cwd()) {
+        rootPkg = pkg
+      } else if (content.dependencies) {
+        const prefix = "file:"
+
+        Object.entries(content.dependencies).forEach((arr) => {
+          if (arr[1].startsWith(prefix)) {
+            const otherdirName = path.resolve(
+              path.join(dirPath, arr[1].substring(prefix.length))
+            )
+
+            if (pkgMap.has(otherdirName)) {
+              edges.push([dirPath, otherdirName])
+            }
+          }
+        })
+      }
+    }
+
+    return {
+      pkgs: pkgMap,
+      order: toposort.array(dirNames, edges).reverse(),
+      rootPkg,
     }
   }
 
-  async _clean(dirName) {
-    const name = path.basename(dirName)
+  async _recurse(commands, operation, options) {
+    this.pkgInfo = await this._getPackageInfo(options.rootDir)
+    this._ensureCommands(commands)
 
-    this.log.info2(`Cleaning '${name}'...`)
-    await remove(path.join(dirName, "node_modules"))
-    await remove(path.join(dirName, "package-lock.json"))
-    await remove(path.join(dirName, "dist"))
-    await remove(path.join(dirName, "build"))
+    for (const dirPath of this.pkgInfo.order) {
+      await operation.apply(this, [dirPath, options])
+    }
   }
 
-  async _install(dirName, options = {}) {
-    const name = path.basename(dirName)
+  async _test(dirPath) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath)
+
+    if (pkg.content.scripts && pkg.content.scripts.test) {
+      this.log.info2(`Testing '${path.basename(dirPath)}'...`)
+      await this._execAndLog("npm", ["test"], { cwd: dirPath })
+    }
+  }
+
+  async _clean(dirPath) {
+    const name = path.basename(dirPath)
+
+    this.log.info2(`Cleaning '${name}'...`)
+    await remove(path.join(dirPath, "node_modules"))
+    await remove(path.join(dirPath, "package-lock.json"))
+    await remove(path.join(dirPath, "dist"))
+    await remove(path.join(dirPath, "build"))
+  }
+
+  async _install(dirPath, options = {}) {
+    const name = path.basename(dirPath)
 
     if (options.clean) {
-      await this._clean(dirName)
+      await this._clean(dirPath)
     }
 
     this.log.info2(`Installing modules in '${name}'...`)
-    await this._execAndLog(`npm install`, { cwd: dirName })
+    await this._execAndLog("npm", ["install"], { cwd: dirPath })
   }
 
-  async _build(dirName, options = {}) {
-    const pkg = this.pkgInfo.pkgs.get(dirName)
-    const name = path.basename(dirName)
+  async _build(dirPath, options = {}) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath)
+    const name = path.basename(dirPath)
 
     if (options.install) {
-      await this._install(dirName)
+      await this._install(dirPath)
     }
 
     if (pkg.content.scripts && pkg.content.scripts.build) {
       this.log.info2(`Building '${name}'...`)
-      await this._execAndLog("npm run build", { cwd: dirName })
+      await this._execAndLog("npm", ["run", "build"], { cwd: dirPath })
     }
   }
 
-  async _deploy(dirName, options = {}) {
-    const pkg = this.pkgInfo.pkgs.get(dirName)
-    const name = path.basename(dirName)
+  async _deploy(dirPath, options = {}) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath)
+    const name = path.basename(dirPath)
 
     if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`)
-      await this._execAndLog("npm run deploy", {
-        cwd: dirName,
+      await this._execAndLog("npm", ["run", "deploy"], {
+        cwd: dirPath,
       })
     }
   }
 
-  async _checkForUncommittedChanges() {
+  async _checkForUncommittedChanges(dirPath) {
     this.log.info2("Checking for uncommitted changes...")
     try {
-      await this._execAndLog("git diff-index --quiet HEAD --")
+      await this._execAndCapture(
+        "git",
+        ["diff-index", "--quiet", "HEAD", "--"],
+        { cwd: dirPath }
+      )
     } catch (error) {
       throw new Error(
         "There are uncomitted changes - commit or stash them and try again"
@@ -234,7 +196,7 @@ export class EasyTool {
     }
   }
 
-  async _release(dirName, options = {}) {
+  async _release(dirPath, options = {}) {
     if (
       options.version !== "major" &&
       options.version !== "minor" &&
@@ -246,12 +208,16 @@ export class EasyTool {
       )
     }
 
-    await this._checkForUncommittedChanges()
+    await this._checkForUncommittedChanges(dirPath)
 
     const branch =
       options.branch ||
-      (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim()
-    const name = path.basename(dirName)
+      (await this._execAndCapture("git", [
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD",
+      ])).trim()
+    const name = path.basename(dirPath)
 
     if (branch === "HEAD") {
       throw new Error("Cannot do release from a detached HEAD state")
@@ -259,9 +225,9 @@ export class EasyTool {
 
     this.log.info2(`Starting release of '${name}' on branch '${branch}'...`)
     this.log.info2(`Checking out '${branch}'...`)
-    await this._execAndLog(`git checkout ${branch}`)
+    await this._execAndLog("git", ["checkout", branch], { cwd: dirPath })
     this.log.info2("Pulling latest...")
-    await this._execAndLog("git pull")
+    await this._execAndLog("git", ["pull"], { cwd: dirPath })
     this.log.info2("Updating version...")
     await ensureDir("scratch")
 
@@ -274,10 +240,16 @@ export class EasyTool {
         ? "-i major"
         : ""
 
-    await this._execAndLog(`npx stampver ${incrFlag} -u -s`)
+    await this._execAndLog("npx", ["stampver", incrFlag, "-u", "-s"], {
+      cwd: dirPath,
+    })
 
-    let tagName = await readFile("scratch/version.tag.txt")
-    let tagDescription = await readFile("scratch/version.desc.txt")
+    let tagName = await readFile(
+      path.resolve(dirPath, "scratch/version.tag.txt")
+    )
+    let tagDescription = await readFile(
+      path.resolve(dirPath, "scratch/version.desc.txt")
+    )
 
     if (branch !== "master") {
       const suffix = "-" + branch
@@ -288,7 +260,9 @@ export class EasyTool {
 
     let isNewTag = true
     try {
-      await this._execAndCapture(`git rev-parse ${tagName}`)
+      await this._execAndCapture("git", ["rev-parse", tagName], {
+        cwd: dirPath,
+      })
       isNewTag = false
     } catch (error) {
       this.log.info(`Confirmed that '${tagName}' is a new tag`)
@@ -302,87 +276,96 @@ export class EasyTool {
 
     try {
       if (options.clean) {
-        await this._clean(dirName)
+        await this._clean(dirPath)
       }
-      await this._install(dirName)
-      await this._build(dirName)
-      await this._test(dirName)
+      await this._install(dirPath)
+      await this._build(dirPath)
+      await this._test(dirPath)
     } catch (error) {
       // Roll back version changes if anything went wrong
-      await this._execAndLog(`git checkout ${branch} .`)
+      await this._execAndLog("git", ["checkout", branch, "."], { cwd: dirPath })
       throw new Error(`Failed to build ${name} on branch '${branch}'`)
     }
 
     this.log.info2("Staging version changes...")
-    await this._execAndLog("git add :/")
+    await this._execAndLog("git", ["add", ":/"], { cwd: dirPath })
     this.log.info("Committing version changes...")
-    await this._execAndLog(`git commit -m '${tagDescription}'`)
+    await this._execAndLog("git", ["commit", "-m", tagDescription], {
+      cwd: dirPath,
+    })
 
     if (isNewTag) {
       this.log.info2("Tagging...")
-      await this._execAndLog(`git tag -a '${tagName}' -m '${tagDescription}'`)
+      await this._execAndLog(
+        "git",
+        ["tag", "-a", tagName, "-m", tagDescription],
+        { cwd: dirPath }
+      )
     }
 
     this.log.info2("Pushing to Git...")
-    await this._execAndLog("git push --follow-tags")
+    await this._execAndLog("git", ["push", "--follow-tags"], { cwd: dirPath })
 
     if (options.deploy) {
-      await this._deploy(dirName)
+      await this._deploy(dirPath)
     }
 
     this.log.info(`Finished release of '${name}' on branch '${branch}'`)
   }
 
-  async _rollback(dirName, options = {}) {
+  async _rollback(dirPath, options = {}) {
     await this._checkForUncommittedChanges()
 
     const ref =
       options.branch ||
-      (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim()
-    const name = path.basename(dirName)
+      (await this._execAndCapture(
+        "git",
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        { cwd: dirPath }
+      )).trim()
+    const name = path.basename(dirPath)
 
     this.log.info2(`Starting rollback of '${name}' from ref '${ref}'...`)
 
     const lastTag = (await this._execAndCapture(
-      `git describe --tags --abbrev=0 ${ref}`
+      "git",
+      ["describe", "--tags", "--abbrev=0", ref],
+      { cwd: dirPath }
     )).trim()
     const penultimateTag = await this._execAndCapture(
-      `git describe --tags --abbrev=0 ${lastTag}~1`
+      "git",
+      ["describe", "--tags", "--abbrev=0", lastTag + "~1"],
+      { cwd: dirPath }
     )
 
     this.log.info2(`Rolling back to tag '${penultimateTag}'...`)
-    await this._execAndLog(`git checkout ${penultimateTag}`)
+    await this._execAndLog("git", ["checkout", penultimateTag], {
+      cwd: dirPath,
+    })
 
     try {
       if (options.clean) {
-        await this._clean(dirName)
+        await this._clean(dirPath)
       }
-      await this._install(dirName)
-      await this._build(dirName)
-      await this._test(dirName)
+      await this._install(dirPath)
+      await this._build(dirPath)
+      await this._test(dirPath)
     } catch (error) {
-      await this._execAndLog(`git checkout ${penultimateTag} .`)
+      await this._execAndLog("git", ["checkout", penultimateTag, "."], {
+        cwd: dirPath,
+      })
       throw new Error(`Failed to build '${penultimateTag}'`)
     }
 
     if (options.deploy) {
-      await this._deploy(dirName)
+      await this._deploy(dirPath)
     }
 
     this.log.info(`Finished rollback of '${name}' from ref '${ref}'`)
   }
 
-  async _recurse(commands, operation, options) {
-    this.pkgInfo = await this._getPackageInfo()
-    this._ensureCommands(commands)
-
-    for (const dirName of this.pkgInfo.order) {
-      await operation.apply(this, [dirName, options])
-    }
-  }
-
   async startAll(options) {
-    this.pkgInfo = await this._getPackageInfo()
+    this.pkgInfo = await this._getPackageInfo(options.rootDir)
     this._ensureCommands(["osascript"])
 
     const tmpObjMain = tmp.fileSync()
@@ -411,8 +394,8 @@ tell application "iTerm"
     let firstTab = true
 
     // Loop through package.json dirs
-    for (const dirName of this.pkgInfo.order) {
-      const pkg = this.pkgInfo.pkgs.get(dirName)
+    for (const dirPath of this.pkgInfo.order) {
+      const pkg = this.pkgInfo.pkgs.get(dirPath)
 
       if (!pkg.content.scripts) {
         continue
@@ -448,7 +431,7 @@ tell application "iTerm"
         tabDetails = [
           {
             name: "start",
-            title: path.basename(dirName),
+            title: path.basename(dirPath),
             color: isLibrary ? "0 255 0" : "0 198 255",
           },
         ]
@@ -458,9 +441,7 @@ tell application "iTerm"
         if (firstTab) {
           script += `
     tell current session of current tab
-      write text "cd ${dirName}; title ${detail.title}; tab-color ${
-            detail.color
-          }; npm run ${detail.name}"
+      write text "cd ${dirPath}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
     end tell
 `
           firstTab = false
@@ -469,9 +450,7 @@ tell application "iTerm"
     set newTab to (create tab with default profile)
     tell newTab
       tell current session of newTab
-        write text "cd ${dirName}; title ${detail.title}; tab-color ${
-            detail.color
-          }; npm run ${detail.name}"
+        write text "cd ${dirPath}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
       end tell
     end tell
 `
@@ -491,18 +470,19 @@ end tell
 
     await this._execAndLog(
       `source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`,
+      [],
       {
         shell: "/bin/bash",
       }
     )
   }
 
-  async testAll() {
-    await this._recurse(["npm"], this._test)
+  async testAll(options) {
+    await this._recurse(["npm"], this._test, options)
   }
 
-  async cleanAll() {
-    await this._recurse(["npm"], this._clean)
+  async cleanAll(options) {
+    await this._recurse(["npm"], this._clean, options)
   }
 
   async installAll(options) {
@@ -521,8 +501,8 @@ end tell
     )
   }
 
-  async deployAll() {
-    await this._recurse(["npm"], this._deploy)
+  async deployAll(options) {
+    await this._recurse(["npm"], this._deploy, options)
   }
 
   async rollbackAll(options) {
@@ -536,9 +516,10 @@ end tell
   async run(argv) {
     const options = {
       boolean: ["help", "version", "clean", "install", "actors", "debug"],
-      string: ["branch"],
+      string: ["branch", "root"],
       alias: {
         a: "actors",
+        r: "root",
       },
     }
     const args = parseArgs(argv, options)
@@ -572,7 +553,7 @@ Options:
 `)
           return 0
         }
-        await this.startAll({ preferActors: !!args.actors })
+        await this.startAll({ preferActors: !!args.actors, rootDir: args.root })
         break
 
       case "clean":
@@ -585,7 +566,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 `)
           return 0
         }
-        await this.cleanAll()
+        await this.cleanAll({ rootDir: args.root })
         break
 
       case "install":
@@ -601,7 +582,7 @@ Options:
   `)
           return 0
         }
-        await this.installAll({ clean: !!args.clean })
+        await this.installAll({ clean: !!args.clean, rootDir: args.root })
         break
 
       case "build":
@@ -618,7 +599,11 @@ Options:
 `)
           return 0
         }
-        await this.buildAll({ clean: !!args.clean, install: !!args.install })
+        await this.buildAll({
+          clean: !!args.clean,
+          install: !!args.install,
+          rootDir: args.root,
+        })
         break
 
       case "test":
@@ -631,7 +616,7 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
 `)
           return 0
         }
-        await this.testAll()
+        await this.testAll({ rootDir: args.root })
         break
 
       case "deploy":
@@ -645,14 +630,13 @@ Will colorize Ansible output if detected.
 `)
           return 0
         }
-        await this.deployAll()
+        await this.deployAll({ rootDir: args.root })
         break
 
       case "release":
         if (args.help) {
-          this.log.info(`Usage: ${
-            this.toolName
-          } release [major|minor|patch|revision] [options]
+          this.log
+            .info(`Usage: ${this.toolName} release [major|minor|patch|revision] [options]
 
 Description:
 
@@ -671,6 +655,7 @@ Options:
           deploy: !!args.deploy,
           branch: args.branch,
           clean: !!args.clean,
+          rootDir: args.root,
         })
         break
 
@@ -693,6 +678,7 @@ Options:
           deploy: !!args.deploy,
           branch: args.branch,
           clean: !!args.clean,
+          rootDir: args.root,
         })
         break
 
@@ -720,6 +706,7 @@ Commands:
   rollback    Rollback to last tagged release, build and test
 
 Global Options:
+  --root      Root directory for project. Default is CWD.
   --help      Shows this help
   --version   Shows the tool version
   --debug     Enable debugging output
