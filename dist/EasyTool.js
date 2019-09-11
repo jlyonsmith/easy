@@ -238,9 +238,9 @@ class EasyTool {
       cwd: dirPath
     });
     this.log.info2("Updating version...");
-    await (0, _fsExtra.ensureDir)("scratch");
-    const incrFlag = options.version === "patch" ? "-i patch" : options.version === "minor" ? "-i minor" : options.version === "major" ? "-i major" : "";
-    await this._execAndLog("npx", ["stampver", incrFlag, "-u", "-s"], {
+    await (0, _fsExtra.ensureDir)(_path.default.resolve(dirPath, "scratch"));
+    const incrFlag = options.version === "patch" ? "patch" : options.version === "minor" ? "minor" : options.version === "major" ? "major" : "";
+    await this._execAndLog("npx", ["stampver", "-i", incrFlag, "-u", "-s"], {
       cwd: dirPath
     });
     let tagName = await (0, _fsExtra.readFile)(_path.default.resolve(dirPath, "scratch/version.tag.txt"));
