@@ -229,18 +229,18 @@ export class EasyTool {
     this.log.info2("Pulling latest...")
     await this._execAndLog("git", ["pull"], { cwd: dirPath })
     this.log.info2("Updating version...")
-    await ensureDir("scratch")
+    await ensureDir(path.resolve(dirPath, "scratch"))
 
     const incrFlag =
       options.version === "patch"
-        ? "-i patch"
+        ? "patch"
         : options.version === "minor"
-        ? "-i minor"
+        ? "minor"
         : options.version === "major"
-        ? "-i major"
+        ? "major"
         : ""
 
-    await this._execAndLog("npx", ["stampver", incrFlag, "-u", "-s"], {
+    await this._execAndLog("npx", ["stampver", "-i", incrFlag, "-u", "-s"], {
       cwd: dirPath,
     })
 
