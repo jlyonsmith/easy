@@ -19,13 +19,17 @@ var _path = _interopRequireDefault(require("path"));
 
 var _process = _interopRequireDefault(require("process"));
 
-var _child_process = require("child_process");
+var _child_process = _interopRequireDefault(require("child_process"));
 
 var _tmpPromise = _interopRequireDefault(require("tmp-promise"));
 
 var _commandExists = require("command-exists");
 
+var _util = _interopRequireDefault(require("util"));
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+_child_process.default.execFileAsync = _util.default.promisify(_child_process.default.execFile);
 
 class EasyTool {
   constructor(container) {
@@ -45,95 +49,12 @@ class EasyTool {
     });
   }
 
-  _execAndCapture(command, options) {
+  _execAndLog(command, args, options = {}) {
+    options.stdio = "inherit";
+
+    const cp = _child_process.default.spawn(command, args, options);
+
     return new Promise((resolve, reject) => {
-      const cp = (0, _child_process.exec)(command, options);
-      let output = "";
-      cp.stdout.on("data", data => {
-        output += data.toString();
-      });
-      cp.on("error", error => {
-        reject(error);
-      });
-      cp.on("exit", function (code) {
-        if (code !== 0) {
-          reject(new Error("Non-zero exit code"));
-        } else {
-          resolve(output);
-        }
-      });
-    });
-  }
-
-  async _getPackageInfo() {
-    if (!(await (0, _fsExtra.exists)("package.json"))) {
-      throw new Error("The current directory does not contain a package.json file");
-    }
-
-    const filenames = (0, _glob.sync)("**/package.json", {
-      ignore: ["**/node_modules/**", "**/scratch/**"],
-      realpath: true
-    });
-    const dirNames = filenames.map(filename => _path.default.dirname(filename));
-    const pkgMap = new Map(dirNames.map(dirName => [dirName, {}]));
-    let edges = [];
-    let rootPkg = null;
-
-    for (let pair of pkgMap) {
-      const [dirName, pkg] = pair;
-      const packageFilename = dirName + "/package.json";
-      let content = null;
-
-      try {
-        content = JSON.parse((await (0, _fsExtra.readFile)(packageFilename, {
-          encoding: "utf8"
-        })));
-      } catch (error) {
-        this.log.error(`Reading ${packageFilename}`);
-        throw error;
-      }
-
-      pkg.content = content;
-
-      if (dirName === _process.default.cwd()) {
-        rootPkg = pkg;
-      } else if (content.dependencies) {
-        const prefix = "file:";
-        Object.entries(content.dependencies).forEach(arr => {
-          if (arr[1].startsWith(prefix)) {
-            const otherdirName = _path.default.resolve(_path.default.join(dirName, arr[1].substring(prefix.length)));
-
-            if (pkgMap.has(otherdirName)) {
-              edges.push([dirName, otherdirName]);
-            }
-          }
-        });
-      }
-    }
-
-    return {
-      pkgs: pkgMap,
-      order: _toposort.default.array(dirNames, edges).reverse(),
-      rootPkg
-    };
-  }
-
-  _execAndLog(command, options = {}) {
-    let outBuf = "";
-    let errBuf = "";
-    return new Promise((resolve, reject) => {
-      const cp = (0, _child_process.exec)(command, options); // From https://stackoverflow.com/a/29497680/576235
-
-      const ansiEscapeRegex = new RegExp(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g);
-
-      const stripAnsiEscapes = s => s.replace(ansiEscapeRegex, "");
-
-      cp.stdout.on("data", data => {
-        this.log.info(stripAnsiEscapes(data.toString()).trim());
-      });
-      cp.stderr.on("data", data => {
-        this.log.info(stripAnsiEscapes(data.toString()).trim());
-      });
       cp.on("error", error => {
         reject(error);
       });
@@ -147,109 +68,161 @@ class EasyTool {
     });
   }
 
-  _execAndCapture(command, options) {
-    return new Promise((resolve, reject) => {
-      const cp = (0, _child_process.exec)(command, options);
-      let output = "";
-      cp.stdout.on("data", data => {
-        output += data.toString();
-      });
-      cp.on("error", error => {
-        reject(error);
-      });
-      cp.on("exit", function (code) {
-        if (code !== 0) {
-          reject(new Error(`'${command}' returned ${code}`));
-        } else {
-          resolve(output);
-        }
-      });
-    });
+  async _execAndCapture(command, args, options) {
+    return (await _child_process.default.execFileAsync(command, args, options)).stdout;
   }
 
-  async _test(dirName) {
-    const pkg = this.pkgInfo.pkgs.get(dirName);
+  async _getPackageInfo(rootDir) {
+    rootDir = rootDir || _process.default.cwd();
+
+    if (!(await (0, _fsExtra.exists)(_path.default.join(rootDir, "package.json")))) {
+      throw new Error("The current directory does not contain a package.json file");
+    }
+
+    const filenames = (0, _glob.sync)("**/package.json", {
+      ignore: ["**/node_modules/**", "**/scratch/**"],
+      realpath: true,
+      cwd: rootDir
+    });
+    const dirNames = filenames.map(filename => _path.default.dirname(filename));
+    const pkgMap = new Map(dirNames.map(dirPath => [dirPath, {}]));
+    let edges = [];
+    let rootPkg = null;
+
+    for (let pair of pkgMap) {
+      const [dirPath, pkg] = pair;
+      const packageFilename = dirPath + "/package.json";
+      let content = null;
+
+      try {
+        content = JSON.parse((await (0, _fsExtra.readFile)(packageFilename, {
+          encoding: "utf8"
+        })));
+      } catch (error) {
+        this.log.error(`Reading ${packageFilename}`);
+        throw error;
+      }
+
+      pkg.content = content;
+
+      if (dirPath === _process.default.cwd()) {
+        rootPkg = pkg;
+      } else if (content.dependencies) {
+        const prefix = "file:";
+        Object.entries(content.dependencies).forEach(arr => {
+          if (arr[1].startsWith(prefix)) {
+            const otherdirName = _path.default.resolve(_path.default.join(dirPath, arr[1].substring(prefix.length)));
+
+            if (pkgMap.has(otherdirName)) {
+              edges.push([dirPath, otherdirName]);
+            }
+          }
+        });
+      }
+    }
+
+    return {
+      pkgs: pkgMap,
+      order: _toposort.default.array(dirNames, edges).reverse(),
+      rootPkg
+    };
+  }
+
+  async _recurse(commands, operation, options) {
+    this.pkgInfo = await this._getPackageInfo(options.rootDir);
+
+    this._ensureCommands(commands);
+
+    for (const dirPath of this.pkgInfo.order) {
+      await operation.apply(this, [dirPath, options]);
+    }
+  }
+
+  async _test(dirPath) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath);
 
     if (pkg.content.scripts && pkg.content.scripts.test) {
-      this.log.info2(`Testing '${_path.default.basename(dirName)}'...`);
-      await this._execAndLog(`npm test`, {
-        cwd: dirName
+      this.log.info2(`Testing '${_path.default.basename(dirPath)}'...`);
+      await this._execAndLog("npm", ["test"], {
+        cwd: dirPath
       });
     }
   }
 
-  async _clean(dirName) {
-    const name = _path.default.basename(dirName);
+  async _clean(dirPath) {
+    const name = _path.default.basename(dirPath);
 
     this.log.info2(`Cleaning '${name}'...`);
-    await (0, _fsExtra.remove)(_path.default.join(dirName, "node_modules"));
-    await (0, _fsExtra.remove)(_path.default.join(dirName, "package-lock.json"));
-    await (0, _fsExtra.remove)(_path.default.join(dirName, "dist"));
-    await (0, _fsExtra.remove)(_path.default.join(dirName, "build"));
+    await (0, _fsExtra.remove)(_path.default.join(dirPath, "node_modules"));
+    await (0, _fsExtra.remove)(_path.default.join(dirPath, "package-lock.json"));
+    await (0, _fsExtra.remove)(_path.default.join(dirPath, "dist"));
+    await (0, _fsExtra.remove)(_path.default.join(dirPath, "build"));
   }
 
-  async _install(dirName, options = {}) {
-    const name = _path.default.basename(dirName);
+  async _install(dirPath, options = {}) {
+    const name = _path.default.basename(dirPath);
 
     if (options.clean) {
-      await this._clean(dirName);
+      await this._clean(dirPath);
     }
 
     this.log.info2(`Installing modules in '${name}'...`);
-    await this._execAndLog(`npm install`, {
-      cwd: dirName
+    await this._execAndLog("npm", ["install"], {
+      cwd: dirPath
     });
   }
 
-  async _build(dirName, options = {}) {
-    const pkg = this.pkgInfo.pkgs.get(dirName);
+  async _build(dirPath, options = {}) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath);
 
-    const name = _path.default.basename(dirName);
+    const name = _path.default.basename(dirPath);
 
     if (options.install) {
-      await this._install(dirName);
+      await this._install(dirPath);
     }
 
     if (pkg.content.scripts && pkg.content.scripts.build) {
       this.log.info2(`Building '${name}'...`);
-      await this._execAndLog("npm run build", {
-        cwd: dirName
+      await this._execAndLog("npm", ["run", "build"], {
+        cwd: dirPath
       });
     }
   }
 
-  async _deploy(dirName, options = {}) {
-    const pkg = this.pkgInfo.pkgs.get(dirName);
+  async _deploy(dirPath, options = {}) {
+    const pkg = this.pkgInfo.pkgs.get(dirPath);
 
-    const name = _path.default.basename(dirName);
+    const name = _path.default.basename(dirPath);
 
     if (pkg.content.scripts && pkg.content.scripts.deploy) {
       this.log.info2(`Deploying '${name}'...`);
-      await this._execAndLog("npm run deploy", {
-        cwd: dirName
+      await this._execAndLog("npm", ["run", "deploy"], {
+        cwd: dirPath
       });
     }
   }
 
-  async _checkForUncommittedChanges() {
+  async _checkForUncommittedChanges(dirPath) {
     this.log.info2("Checking for uncommitted changes...");
 
     try {
-      await this._execAndLog("git diff-index --quiet HEAD --");
+      await this._execAndCapture("git", ["diff-index", "--quiet", "HEAD", "--"], {
+        cwd: dirPath
+      });
     } catch (error) {
       throw new Error("There are uncomitted changes - commit or stash them and try again");
     }
   }
 
-  async _release(dirName, options = {}) {
+  async _release(dirPath, options = {}) {
     if (options.version !== "major" && options.version !== "minor" && options.version !== "patch" && options.version !== "revision") {
       throw new Error(`Major, minor, patch or revision must be incremented for release`);
     }
 
-    await this._checkForUncommittedChanges();
-    const branch = options.branch || (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim();
+    await this._checkForUncommittedChanges(dirPath);
+    const branch = options.branch || (await this._execAndCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
 
-    const name = _path.default.basename(dirName);
+    const name = _path.default.basename(dirPath);
 
     if (branch === "HEAD") {
       throw new Error("Cannot do release from a detached HEAD state");
@@ -257,15 +230,21 @@ class EasyTool {
 
     this.log.info2(`Starting release of '${name}' on branch '${branch}'...`);
     this.log.info2(`Checking out '${branch}'...`);
-    await this._execAndLog(`git checkout ${branch}`);
+    await this._execAndLog("git", ["checkout", branch], {
+      cwd: dirPath
+    });
     this.log.info2("Pulling latest...");
-    await this._execAndLog("git pull");
+    await this._execAndLog("git", ["pull"], {
+      cwd: dirPath
+    });
     this.log.info2("Updating version...");
     await (0, _fsExtra.ensureDir)("scratch");
     const incrFlag = options.version === "patch" ? "-i patch" : options.version === "minor" ? "-i minor" : options.version === "major" ? "-i major" : "";
-    await this._execAndLog(`npx stampver ${incrFlag} -u -s`);
-    let tagName = await (0, _fsExtra.readFile)("scratch/version.tag.txt");
-    let tagDescription = await (0, _fsExtra.readFile)("scratch/version.desc.txt");
+    await this._execAndLog("npx", ["stampver", incrFlag, "-u", "-s"], {
+      cwd: dirPath
+    });
+    let tagName = await (0, _fsExtra.readFile)(_path.default.resolve(dirPath, "scratch/version.tag.txt"));
+    let tagDescription = await (0, _fsExtra.readFile)(_path.default.resolve(dirPath, "scratch/version.desc.txt"));
 
     if (branch !== "master") {
       const suffix = "-" + branch;
@@ -276,7 +255,9 @@ class EasyTool {
     let isNewTag = true;
 
     try {
-      await this._execAndCapture(`git rev-parse ${tagName}`);
+      await this._execAndCapture("git", ["rev-parse", tagName], {
+        cwd: dirPath
+      });
       isNewTag = false;
     } catch (error) {
       this.log.info(`Confirmed that '${tagName}' is a new tag`);
@@ -288,82 +269,92 @@ class EasyTool {
 
     try {
       if (options.clean) {
-        await this._clean(dirName);
+        await this._clean(dirPath);
       }
 
-      await this._install(dirName);
-      await this._build(dirName);
-      await this._test(dirName);
+      await this._install(dirPath);
+      await this._build(dirPath);
+      await this._test(dirPath);
     } catch (error) {
       // Roll back version changes if anything went wrong
-      await this._execAndLog(`git checkout ${branch} .`);
+      await this._execAndLog("git", ["checkout", branch, "."], {
+        cwd: dirPath
+      });
       throw new Error(`Failed to build ${name} on branch '${branch}'`);
     }
 
     this.log.info2("Staging version changes...");
-    await this._execAndLog("git add :/");
+    await this._execAndLog("git", ["add", ":/"], {
+      cwd: dirPath
+    });
     this.log.info("Committing version changes...");
-    await this._execAndLog(`git commit -m '${tagDescription}'`);
+    await this._execAndLog("git", ["commit", "-m", tagDescription], {
+      cwd: dirPath
+    });
 
     if (isNewTag) {
       this.log.info2("Tagging...");
-      await this._execAndLog(`git tag -a '${tagName}' -m '${tagDescription}'`);
+      await this._execAndLog("git", ["tag", "-a", tagName, "-m", tagDescription], {
+        cwd: dirPath
+      });
     }
 
     this.log.info2("Pushing to Git...");
-    await this._execAndLog("git push --follow-tags");
+    await this._execAndLog("git", ["push", "--follow-tags"], {
+      cwd: dirPath
+    });
 
     if (options.deploy) {
-      await this._deploy(dirName);
+      await this._deploy(dirPath);
     }
 
     this.log.info(`Finished release of '${name}' on branch '${branch}'`);
   }
 
-  async _rollback(dirName, options = {}) {
+  async _rollback(dirPath, options = {}) {
     await this._checkForUncommittedChanges();
-    const ref = options.branch || (await this._execAndCapture("git rev-parse --abbrev-ref HEAD")).trim();
+    const ref = options.branch || (await this._execAndCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: dirPath
+    })).trim();
 
-    const name = _path.default.basename(dirName);
+    const name = _path.default.basename(dirPath);
 
     this.log.info2(`Starting rollback of '${name}' from ref '${ref}'...`);
-    const lastTag = (await this._execAndCapture(`git describe --tags --abbrev=0 ${ref}`)).trim();
-    const penultimateTag = await this._execAndCapture(`git describe --tags --abbrev=0 ${lastTag}~1`);
+    const lastTag = (await this._execAndCapture("git", ["describe", "--tags", "--abbrev=0", ref], {
+      cwd: dirPath
+    })).trim();
+    const penultimateTag = await this._execAndCapture("git", ["describe", "--tags", "--abbrev=0", lastTag + "~1"], {
+      cwd: dirPath
+    });
     this.log.info2(`Rolling back to tag '${penultimateTag}'...`);
-    await this._execAndLog(`git checkout ${penultimateTag}`);
+    await this._execAndLog("git", ["checkout", penultimateTag], {
+      cwd: dirPath
+    });
 
     try {
       if (options.clean) {
-        await this._clean(dirName);
+        await this._clean(dirPath);
       }
 
-      await this._install(dirName);
-      await this._build(dirName);
-      await this._test(dirName);
+      await this._install(dirPath);
+      await this._build(dirPath);
+      await this._test(dirPath);
     } catch (error) {
-      await this._execAndLog(`git checkout ${penultimateTag} .`);
+      await this._execAndLog("git", ["checkout", penultimateTag, "."], {
+        cwd: dirPath
+      });
       throw new Error(`Failed to build '${penultimateTag}'`);
     }
 
     if (options.deploy) {
-      await this._deploy(dirName);
+      await this._deploy(dirPath);
     }
 
     this.log.info(`Finished rollback of '${name}' from ref '${ref}'`);
   }
 
-  async _recurse(commands, operation, options) {
-    this.pkgInfo = await this._getPackageInfo();
-
-    this._ensureCommands(commands);
-
-    for (const dirName of this.pkgInfo.order) {
-      await operation.apply(this, [dirName, options]);
-    }
-  }
-
   async startAll(options) {
-    this.pkgInfo = await this._getPackageInfo();
+    this.pkgInfo = await this._getPackageInfo(options.rootDir);
 
     this._ensureCommands(["osascript"]);
 
@@ -389,8 +380,8 @@ tell application "iTerm"
     `;
     let firstTab = true; // Loop through package.json dirs
 
-    for (const dirName of this.pkgInfo.order) {
-      const pkg = this.pkgInfo.pkgs.get(dirName);
+    for (const dirPath of this.pkgInfo.order) {
+      const pkg = this.pkgInfo.pkgs.get(dirPath);
 
       if (!pkg.content.scripts) {
         continue;
@@ -418,7 +409,7 @@ tell application "iTerm"
         const isLibrary = pkg.content.keywords && (Array.isArray(pkg.content.keywords) && pkg.content.keywords.includes("library") || pkg.content.keywords.hasOwnProperty("library"));
         tabDetails = [{
           name: "start",
-          title: _path.default.basename(dirName),
+          title: _path.default.basename(dirPath),
           color: isLibrary ? "0 255 0" : "0 198 255"
         }];
       }
@@ -427,7 +418,7 @@ tell application "iTerm"
         if (firstTab) {
           script += `
     tell current session of current tab
-      write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+      write text "cd ${dirPath}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
     end tell
 `;
           firstTab = false;
@@ -436,7 +427,7 @@ tell application "iTerm"
     set newTab to (create tab with default profile)
     tell newTab
       tell current session of newTab
-        write text "cd ${dirName}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
+        write text "cd ${dirPath}; title ${detail.title}; tab-color ${detail.color}; npm run ${detail.name}"
       end tell
     end tell
 `;
@@ -454,17 +445,17 @@ end tell
       this.log.info(script);
     }
 
-    await this._execAndLog(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, {
+    await this._execAndLog(`source ${tmpObjHelper.name}; osascript < ${tmpObjMain.name}`, [], {
       shell: "/bin/bash"
     });
   }
 
-  async testAll() {
-    await this._recurse(["npm"], this._test);
+  async testAll(options) {
+    await this._recurse(["npm"], this._test, options);
   }
 
-  async cleanAll() {
-    await this._recurse(["npm"], this._clean);
+  async cleanAll(options) {
+    await this._recurse(["npm"], this._clean, options);
   }
 
   async installAll(options) {
@@ -479,8 +470,8 @@ end tell
     await this._recurse(["stampver", "git", "npx", "npm"], this._release, options);
   }
 
-  async deployAll() {
-    await this._recurse(["npm"], this._deploy);
+  async deployAll(options) {
+    await this._recurse(["npm"], this._deploy, options);
   }
 
   async rollbackAll(options) {
@@ -490,9 +481,10 @@ end tell
   async run(argv) {
     const options = {
       boolean: ["help", "version", "clean", "install", "actors", "debug"],
-      string: ["branch"],
+      string: ["branch", "root"],
       alias: {
-        a: "actors"
+        a: "actors",
+        r: "root"
       }
     };
     const args = (0, _minimist.default)(argv, options);
@@ -528,7 +520,8 @@ Options:
         }
 
         await this.startAll({
-          preferActors: !!args.actors
+          preferActors: !!args.actors,
+          rootDir: args.root
         });
         break;
 
@@ -543,7 +536,9 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
           return 0;
         }
 
-        await this.cleanAll();
+        await this.cleanAll({
+          rootDir: args.root
+        });
         break;
 
       case "install":
@@ -561,7 +556,8 @@ Options:
         }
 
         await this.installAll({
-          clean: !!args.clean
+          clean: !!args.clean,
+          rootDir: args.root
         });
         break;
 
@@ -582,7 +578,8 @@ Options:
 
         await this.buildAll({
           clean: !!args.clean,
-          install: !!args.install
+          install: !!args.install,
+          rootDir: args.root
         });
         break;
 
@@ -597,7 +594,9 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
           return 0;
         }
 
-        await this.testAll();
+        await this.testAll({
+          rootDir: args.root
+        });
         break;
 
       case "deploy":
@@ -612,7 +611,9 @@ Will colorize Ansible output if detected.
           return 0;
         }
 
-        await this.deployAll();
+        await this.deployAll({
+          rootDir: args.root
+        });
         break;
 
       case "release":
@@ -636,7 +637,8 @@ Options:
           version: args._[0],
           deploy: !!args.deploy,
           branch: args.branch,
-          clean: !!args.clean
+          clean: !!args.clean,
+          rootDir: args.root
         });
         break;
 
@@ -659,7 +661,8 @@ Options:
         await this.rollbackAll({
           deploy: !!args.deploy,
           branch: args.branch,
-          clean: !!args.clean
+          clean: !!args.clean,
+          rootDir: args.root
         });
         break;
 
@@ -687,6 +690,7 @@ Commands:
   rollback    Rollback to last tagged release, build and test
 
 Global Options:
+  --root      Root directory for project. Default is CWD.
   --help      Shows this help
   --version   Shows the tool version
   --debug     Enable debugging output
