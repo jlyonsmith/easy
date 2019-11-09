@@ -2,7 +2,7 @@
 
 A tool that makes building, testing, starting, deploying and releasing multi-package NodeJS projects **easy**!
 
-`easy` is a tool for managing a NodeJS project tree. It assumes your development environment uses:
+`easy` is an opinionated tool for managing a NodeJS project tree. It assumes your development environment uses:
 
 - [npm](http://npmjs.org) as the [NodeJS](http://nodejs.org) package manager
 - [git](https://git-scm.com/) to manage your source code
