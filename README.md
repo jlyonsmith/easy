@@ -1,5 +1,7 @@
 # Easy: Node Build & Release Tool
 
+[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
+
 A tool that makes building, testing, starting, deploying and releasing multi-package NodeJS projects **easy**!
 
 `easy` is an opinionated tool for managing a NodeJS project tree. It assumes your development environment uses:
