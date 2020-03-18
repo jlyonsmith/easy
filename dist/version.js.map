@@ -1,1 +1,1 @@
-{"version":3,"sources":["../src/version.js"],"names":["shortVersion","fullVersion"],"mappings":";;;;;;AAAO,MAAMA,YAAY,GAAG,OAArB;;AACA,MAAMC,WAAW,GAAG,kBAApB","sourcesContent":["export const shortVersion = \"4.4.1\"\nexport const fullVersion = \"4.4.1+20190910.0\"\n"],"file":"version.js"}
+{"version":3,"sources":["../src/version.js"],"names":["shortVersion","fullVersion"],"mappings":";;;;;;AAAO,MAAMA,YAAY,GAAG,OAArB;;AACA,MAAMC,WAAW,GAAG,kBAApB","sourcesContent":["export const shortVersion = \"4.4.2\"\nexport const fullVersion = \"4.4.2+20200318.0\"\n"],"file":"version.js"}
