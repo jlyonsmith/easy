@@ -1,2 +1,2 @@
-export const shortVersion = "4.4.2"
-export const fullVersion = "4.4.2+20200318.0"
+export const shortVersion = "4.4.3"
+export const fullVersion = "4.4.3+20200320.0"
