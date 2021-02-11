@@ -215,10 +215,6 @@ class EasyTool {
   }
 
   async _release(dirPath, options = {}) {
-    if (options.version !== "major" && options.version !== "minor" && options.version !== "patch" && options.version !== "revision") {
-      throw new Error(`Major, minor, patch or revision must be incremented for release`);
-    }
-
     await this._checkForUncommittedChanges(dirPath);
     const branch = options.branch || (await this._execAndCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
 
@@ -239,8 +235,7 @@ class EasyTool {
     });
     this.log.info2("Updating version...");
     await (0, _fsExtra.ensureDir)(_path.default.resolve(dirPath, "scratch"));
-    const incrFlag = options.version === "patch" ? "patch" : options.version === "minor" ? "minor" : options.version === "major" ? "major" : "";
-    await this._execAndLog("npx", ["stampver", "-i", incrFlag, "-u", "-s"], {
+    await this._execAndLog("npx", ["stampver", options.versionOp, "-u"], {
       cwd: dirPath
     });
     let tagName = await (0, _fsExtra.readFile)(_path.default.resolve(dirPath, "scratch/version.tag.txt"));
@@ -547,7 +542,7 @@ Recursively deletes all 'dist' and 'node_modules' directories, and 'package-lock
 
 Description:
 
-Recursively runs 'npm install' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm install' in all directories containing 'package.json' (except 'node_modules/**').
 
 Options:
   --clean         Runs a clean before installing
@@ -567,7 +562,7 @@ Options:
 
 Description:
 
-Recursively runs 'npm run build' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm run build' in all directories containing 'package.json' (except 'node_modules/**').
 
 Options:
   --install       Recursively runs 'npm install' before building
@@ -589,7 +584,7 @@ Options:
 
 Description:
 
-Recursively runs 'npm test' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm test' in all directories containing 'package.json' (except 'node_modules/**').
 `);
           return 0;
         }
@@ -605,7 +600,7 @@ Recursively runs 'npm test' in all directories containing 'package.json' except 
 
 Description:
 
-Recursively runs 'npm run deploy' in all directories containing 'package.json' except 'node_modules/**'.
+Recursively runs 'npm run deploy' in all directories containing 'package.json' (except 'node_modules/**').
 Will colorize Ansible output if detected.
 `);
           return 0;
@@ -618,23 +613,24 @@ Will colorize Ansible output if detected.
 
       case "release":
         if (args.help) {
-          this.log.info(`Usage: ${this.toolName} release [major|minor|patch|revision] [options]
+          this.log.info(`Usage: ${this.toolName} release <version-operation> [options]
 
 Description:
 
-Update version information, 'install', 'build' and 'test',
-tag local Git repo and push changes then optionally run a 'deploy'.
+Release a package, including running a versioning operation (as defined in the 'version.json5' files),
+then run 'install', 'lint', 'build' and 'test' scripts from 'package.json', tag the commit and
+push changes. Optionally run the package 'deploy' script.
 
 Options:
-  --deploy      Run a deployment after a success release
-  --branch      Will operate on a specific branch. Defaults to 'master'.
-  --clean       Clean before installing
+  --deploy      Run 'deploy' script if other release steps succeed
+  --branch      Will operate on a specific branch. Defaults to 'master'
+  --clean       Do an 'easy clean' operation before doing release steps
 `);
           return 0;
         }
 
         await this.releaseAll({
-          version: args._[0],
+          versionOp: args._[0],
           deploy: !!args.deploy,
           branch: args.branch,
           clean: !!args.clean,
