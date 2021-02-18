@@ -475,7 +475,7 @@ end tell
 
   async run(argv) {
     const options = {
-      boolean: ["help", "version", "clean", "install", "actors", "debug"],
+      boolean: ["help", "version", "clean", "install", "actors", "deploy", "debug"],
       string: ["branch", "root"],
       alias: {
         a: "actors",
@@ -601,7 +601,6 @@ Recursively runs 'npm test' in all directories containing 'package.json' (except
 Description:
 
 Recursively runs 'npm run deploy' in all directories containing 'package.json' (except 'node_modules/**').
-Will colorize Ansible output if detected.
 `);
           return 0;
         }
